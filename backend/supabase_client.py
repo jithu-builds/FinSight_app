@@ -23,7 +23,6 @@ CREATE TABLE IF NOT EXISTS budgets (
     UNIQUE (user_id, category)
 );
 
--- Enable Row Level Security (strongly recommended for production)
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE budgets      ENABLE ROW LEVEL SECURITY;
 
@@ -46,18 +45,17 @@ load_dotenv()
 SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise EnvironmentError(
-        "SUPABASE_URL and SUPABASE_KEY must be set in your .env file."
-    )
-
 _client: Optional[Client] = None
 
 
 def get_client() -> Client:
-    """Return a singleton Supabase client."""
+    """Return a lazy-initialised singleton Supabase client."""
     global _client
     if _client is None:
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            raise EnvironmentError(
+                "SUPABASE_URL and SUPABASE_KEY must be set in your .env file."
+            )
         _client = create_client(SUPABASE_URL, SUPABASE_KEY)
     return _client
 
@@ -65,10 +63,6 @@ def get_client() -> Client:
 # ─── Authentication ───────────────────────────────────────────────────────────
 
 def sign_up(email: str, password: str) -> dict:
-    """
-    Register a new user.
-    Returns {"user": ..., "session": ..., "error": str|None}.
-    """
     try:
         response = get_client().auth.sign_up({"email": email, "password": password})
         return {"user": response.user, "session": response.session, "error": None}
@@ -77,10 +71,6 @@ def sign_up(email: str, password: str) -> dict:
 
 
 def sign_in(email: str, password: str) -> dict:
-    """
-    Sign in with email + password.
-    Returns {"user": ..., "session": ..., "error": str|None}.
-    """
     try:
         response = get_client().auth.sign_in_with_password(
             {"email": email, "password": password}
@@ -91,7 +81,6 @@ def sign_in(email: str, password: str) -> dict:
 
 
 def sign_out() -> None:
-    """Sign out the current user."""
     try:
         get_client().auth.sign_out()
     except Exception:
@@ -101,15 +90,8 @@ def sign_out() -> None:
 # ─── Transactions ─────────────────────────────────────────────────────────────
 
 def insert_transactions(user_id: str, transactions: list[dict], source_file: str = "") -> dict:
-    """
-    Bulk-insert a list of transaction dicts for the given user.
-
-    Each dict must contain: date, description, amount, category.
-    Returns {"data": [...], "error": str|None}.
-    """
     if not transactions:
         return {"data": [], "error": None}
-
     rows = [
         {
             "user_id":     user_id,
@@ -121,19 +103,19 @@ def insert_transactions(user_id: str, transactions: list[dict], source_file: str
         }
         for t in transactions
     ]
-
     try:
-        result = get_client().table("transactions").insert(rows).execute()
+        result = (
+            get_client()
+            .table("transactions")
+            .upsert(rows, on_conflict="user_id,date,description,amount")
+            .execute()
+        )
         return {"data": result.data, "error": None}
     except Exception as exc:
         return {"data": [], "error": str(exc)}
 
 
 def fetch_transactions(user_id: str) -> dict:
-    """
-    Fetch all transactions belonging to the user, newest first.
-    Returns {"data": [...], "error": str|None}.
-    """
     try:
         result = (
             get_client()
@@ -148,8 +130,24 @@ def fetch_transactions(user_id: str) -> dict:
         return {"data": [], "error": str(exc)}
 
 
+def file_already_imported(user_id: str, filename: str) -> bool:
+    """Return True if this filename was already imported for this user."""
+    try:
+        result = (
+            get_client()
+            .table("transactions")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("source_file", filename)
+            .limit(1)
+            .execute()
+        )
+        return len(result.data) > 0
+    except Exception:
+        return False
+
+
 def delete_transactions(user_id: str) -> dict:
-    """Delete ALL transactions for a user (used for 'reset data')."""
     try:
         result = (
             get_client()
@@ -166,7 +164,6 @@ def delete_transactions(user_id: str) -> dict:
 # ─── Budgets ──────────────────────────────────────────────────────────────────
 
 def upsert_budget(user_id: str, category: str, monthly_limit: float) -> dict:
-    """Create or update a budget limit for a category."""
     try:
         result = (
             get_client()
@@ -183,7 +180,6 @@ def upsert_budget(user_id: str, category: str, monthly_limit: float) -> dict:
 
 
 def fetch_budgets(user_id: str) -> dict:
-    """Fetch all budget limits for a user."""
     try:
         result = (
             get_client()

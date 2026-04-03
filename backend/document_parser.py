@@ -1,88 +1,105 @@
 """
 Reducto PDF parser.
 
-Uploads a local PDF to the Reducto API and returns the extracted
-Markdown text, which is then passed to the AI engine for transaction
-extraction.
+Uses the Reducto REST API directly via `requests` — no SDK required.
 
-Reducto SDK response structure (for reference):
-  upload_resp.upload_id           → str
-  parse_resp.result.markdown      → str  (full document markdown)
-  parse_resp.result.chunks        → list (page-level chunks, optional use)
+Correct API details:
+  Base URL  : https://platform.reducto.ai
+  Upload    : POST /upload  → { "file_id": "reducto://..." }
+  Parse     : POST /parse   → { "result": { "chunks": [{ "content": "..." }] } }
+  Auth      : Authorization: Bearer <REDUCTO_API_KEY>
 """
 
 import os
 
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
 REDUCTO_API_KEY: str = os.getenv("REDUCTO_API_KEY", "")
+REDUCTO_BASE_URL = "https://platform.reducto.ai"
 
 
 def parse_pdf_to_markdown(file_path: str) -> str:
     """
-    Upload *file_path* to Reducto, parse it, and return the full
-    extracted Markdown string.
+    Upload *file_path* to Reducto and return the full extracted Markdown string.
 
     Raises:
         EnvironmentError  – REDUCTO_API_KEY is not configured.
         FileNotFoundError – The file does not exist.
-        RuntimeError      – Any Reducto API or network error.
+        RuntimeError      – Any Reducto API / network error.
     """
     if not REDUCTO_API_KEY:
         raise EnvironmentError(
             "REDUCTO_API_KEY is not set. Add it to your .env file."
         )
-
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"PDF not found at path: {file_path}")
 
-    # Import here so a missing SDK surfaces a clear message.
-    try:
-        from reducto import Reducto  # type: ignore
-    except ImportError as exc:
-        raise ImportError(
-            "The 'reducto' package is not installed. Run: pip install reducto"
-        ) from exc
-
-    client = Reducto(api_key=REDUCTO_API_KEY)
+    headers = {"Authorization": f"Bearer {REDUCTO_API_KEY}"}
     file_name = os.path.basename(file_path)
 
-    # ── Step 1: Upload the PDF ────────────────────────────────────────────────
+    # ── Step 1: Upload ────────────────────────────────────────────────────────
     try:
         with open(file_path, "rb") as pdf_file:
-            upload_resp = client.upload.upload(
-                file=(file_name, pdf_file, "application/pdf")
+            upload_resp = requests.post(
+                f"{REDUCTO_BASE_URL}/upload",
+                headers=headers,
+                files={"file": (file_name, pdf_file, "application/pdf")},
+                timeout=60,
             )
-    except Exception as exc:
-        raise RuntimeError(f"Reducto upload failed: {exc}") from exc
-
-    upload_id: str = upload_resp.upload_id
-    if not upload_id:
-        raise RuntimeError("Reducto returned an empty upload_id.")
-
-    # ── Step 2: Parse the uploaded document ──────────────────────────────────
-    try:
-        parse_resp = client.parse.parse_url(
-            document_url=f"reducto://{upload_id}"
-        )
-    except Exception as exc:
-        raise RuntimeError(f"Reducto parse failed: {exc}") from exc
-
-    # ── Step 3: Extract Markdown text ────────────────────────────────────────
-    try:
-        markdown_text: str = parse_resp.result.markdown
-    except AttributeError as exc:
+        upload_resp.raise_for_status()
+    except requests.HTTPError as exc:
         raise RuntimeError(
-            "Unexpected Reducto response structure. "
-            f"Could not access .result.markdown — raw response: {parse_resp}"
+            f"Reducto upload failed [{exc.response.status_code}]: "
+            f"{exc.response.text[:400]}"
         ) from exc
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Reducto upload network error: {exc}") from exc
 
-    if not markdown_text or not markdown_text.strip():
+    upload_data = upload_resp.json()
+    # Response: { "file_id": "reducto://..." }
+    file_id: str = upload_data.get("file_id", "")
+    if not file_id:
         raise RuntimeError(
-            "Reducto returned an empty document. "
-            "Ensure the PDF contains selectable text (not a scanned image)."
+            f"Reducto upload returned unexpected response: {upload_data}"
         )
+
+    # ── Step 2: Parse ─────────────────────────────────────────────────────────
+    try:
+        parse_resp = requests.post(
+            f"{REDUCTO_BASE_URL}/parse",
+            headers={**headers, "Content-Type": "application/json"},
+            json={"input": file_id},
+            timeout=120,
+        )
+        parse_resp.raise_for_status()
+    except requests.HTTPError as exc:
+        raise RuntimeError(
+            f"Reducto parse failed [{exc.response.status_code}]: "
+            f"{exc.response.text[:400]}"
+        ) from exc
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Reducto parse network error: {exc}") from exc
+
+    # ── Step 3: Extract markdown from chunks ─────────────────────────────────
+    parse_data = parse_resp.json()
+    chunks: list = parse_data.get("result", {}).get("chunks", [])
+
+    if not chunks:
+        raise RuntimeError(
+            "Reducto returned no content chunks. "
+            "Ensure the PDF contains selectable text (not a scanned image).\n"
+            f"Raw response keys: {list(parse_data.keys())}"
+        )
+
+    # Join all chunk content into a single markdown document
+    markdown_text = "\n\n".join(
+        chunk.get("content", "") for chunk in chunks if chunk.get("content")
+    ).strip()
+
+    if not markdown_text:
+        raise RuntimeError("Reducto parsed the document but all chunks were empty.")
 
     return markdown_text
