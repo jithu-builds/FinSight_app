@@ -42,8 +42,18 @@ from supabase import create_client, Client
 
 load_dotenv()
 
-SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
+
+def _secret(key: str) -> str:
+    """Read from st.secrets (Streamlit Cloud) or fall back to os.getenv (.env)."""
+    try:
+        import streamlit as st
+        return st.secrets.get(key) or os.getenv(key, "")
+    except Exception:
+        return os.getenv(key, "")
+
+
+SUPABASE_URL: str = _secret("SUPABASE_URL")
+SUPABASE_KEY: str = _secret("SUPABASE_KEY")
 
 _client: Optional[Client] = None
 

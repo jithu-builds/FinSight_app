@@ -153,12 +153,46 @@ div[data-testid="stSpinner"] > div > div {
 # ── Inject CSS immediately so the dark background is visible right away ───────
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
-# ── Load all heavy modules INSIDE a spinner so the user sees feedback ─────────
-# This is the key fix: Streamlit sends the spinner to the browser first,
-# then runs the imports. Without this, a blank screen shows for several seconds.
-with st.spinner("Loading Finance Tracker…"):
-    from components.auth import logout, restore_session_from_cookies, show_auth_page  # noqa: E402
-    from frontend import budgeting, chat_ai, dashboard                                # noqa: E402
+# ── Full-screen loading overlay shown while heavy modules import ───────────────
+_loader = st.empty()
+_loader.markdown(
+    """
+    <style>
+    #ft-loader {
+        position: fixed; inset: 0;
+        background: #0f172a;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 0.75rem; z-index: 99999;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    .ft-l-icon  { font-size: 3.5rem; animation: ft-pulse 1.6s ease-in-out infinite; }
+    .ft-l-title { color: #f1f5f9; font-size: 1.65rem; font-weight: 700;
+                  letter-spacing: -0.4px; margin: 0.25rem 0 0; }
+    .ft-l-sub   { color: #475569; font-size: 0.85rem; margin: 0 0 1.25rem; }
+    .ft-l-ring  {
+        width: 40px; height: 40px;
+        border: 3px solid rgba(99,102,241,0.2);
+        border-top-color: #818cf8; border-radius: 50%;
+        animation: ft-spin 0.85s linear infinite;
+    }
+    @keyframes ft-spin  { to { transform: rotate(360deg); } }
+    @keyframes ft-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+    </style>
+    <div id="ft-loader">
+        <div class="ft-l-icon">💰</div>
+        <p class="ft-l-title">Finance Tracker</p>
+        <p class="ft-l-sub">Loading your workspace…</p>
+        <div class="ft-l-ring"></div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+from components.auth import logout, restore_session_from_cookies, show_auth_page  # noqa: E402
+from frontend import budgeting, chat_ai, dashboard                                # noqa: E402
+
+_loader.empty()  # remove the overlay once imports are done
 
 
 # ─── Session init ─────────────────────────────────────────────────────────────
@@ -219,8 +253,6 @@ def _render_sidebar() -> str:
 def main() -> None:
     _init_session()
 
-    # Try to restore session from cookies before showing auth page.
-    # This is what keeps the user logged in across browser refreshes.
     if not st.session_state.logged_in:
         restore_session_from_cookies()
 

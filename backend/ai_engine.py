@@ -17,7 +17,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+
+def _secret(key: str) -> str:
+    """Read from st.secrets (Streamlit Cloud) or fall back to os.getenv (.env)."""
+    try:
+        import streamlit as st
+        return st.secrets.get(key) or os.getenv(key, "")
+    except Exception:
+        return os.getenv(key, "")
+
+
+GEMINI_API_KEY: str = _secret("GEMINI_API_KEY")
 _MODEL_NAME = "gemini-2.5-flash"
 
 VALID_CATEGORIES = [
