@@ -1,6 +1,6 @@
-# 💰 AI Personal Finance Tracker
+# 💡 FinSight — AI Personal Finance Tracker
 
-An AI-powered personal finance tracker that reads your bank statements, categorises your spending, tracks your budgets, and gives you intelligent insights — all in one place.
+FinSight is an AI-powered personal finance tracker that reads your bank statements, categorises your spending, tracks your budgets, and gives you intelligent insights — all in one place.
 
 ---
 
@@ -8,11 +8,11 @@ An AI-powered personal finance tracker that reads your bank statements, categori
 
 | Feature | Description |
 |---|---|
-| **PDF Import** | Upload your bank statement PDF and the app extracts every transaction automatically |
-| **AI Categorisation** | Google Gemini 2.5 Flash reads the transactions and assigns categories like Food, Transport, Shopping |
+| **PDF Import** | Upload your bank statement PDF and FinSight extracts every transaction automatically |
+| **AI Categorisation** | FinSight AI reads the transactions and assigns categories like Food, Transport, Shopping |
 | **Dashboard** | Visual breakdown of your spending with pie charts, bar charts, and monthly trends |
 | **Budget Tracker** | Set monthly limits per category and see how your actual spending compares |
-| **AI Budget Suggestions** | Gemini analyses your history and suggests realistic budget limits for you |
+| **AI Budget Suggestions** | FinSight AI analyses your history and suggests realistic budget limits for you |
 | **AI Insights** | Get a spending health score, end-of-month predictions, and specific recommendations like "Skip the cinema this weekend — you've already spent $45 on entertainment" |
 | **Secure Auth** | Login and signup powered by Supabase — your data is isolated to your account only |
 
@@ -23,7 +23,7 @@ An AI-powered personal finance tracker that reads your bank statements, categori
 - **Frontend** — [Streamlit](https://streamlit.io)
 - **Database & Auth** — [Supabase](https://supabase.com)
 - **PDF Parsing** — [Reducto API](https://reducto.ai)
-- **AI** — [Google Gemini 2.5 Flash](https://ai.google.dev)
+- **AI** — [Google Gemini](https://ai.google.dev) (branded as FinSight AI)
 - **Language** — Python 3.9+
 
 ---
@@ -140,7 +140,7 @@ Open [http://localhost:8501](http://localhost:8501) in your browser.
 
 1. **Sign up** with your email and password
 2. Go to **Dashboard** and upload a PDF bank statement
-3. The app will extract and categorise all transactions automatically
+3. FinSight will extract and categorise all transactions automatically
 4. Go to **Budgeting** → click **Get AI Budget Suggestions** to set limits
 5. Go to **AI Insights** to see your spending health score, predictions, and recommendations
 
