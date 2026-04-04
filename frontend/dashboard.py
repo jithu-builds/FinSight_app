@@ -1,22 +1,28 @@
 """
-Dashboard page — PDF upload, transaction processing, and spending charts.
+Dashboard page — PDF upload, transaction processing, spending charts,
+and manual edit / delete of individual transactions.
 """
 
 import os
 import tempfile
+from datetime import date as _date
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-
-from datetime import date as _date
+import streamlit.components.v1 as _stc
 
 from backend.ai_engine import extract_transactions_from_markdown
 from backend.document_parser import parse_pdf_to_markdown
-from backend.supabase_client import fetch_transactions, file_already_imported, insert_transactions
+from backend.supabase_client import (
+    delete_transaction,
+    fetch_transactions,
+    file_already_imported,
+    insert_transactions,
+    update_transaction,
+)
 
-# Consistent, vibrant colour palette that reads well on dark backgrounds
 CATEGORY_COLORS = {
     "Food & Dining":  "#6366f1",
     "Transport":      "#22d3ee",
@@ -70,7 +76,7 @@ def _process_uploaded_pdf(uploaded_file) -> None:
         markdown_text = parse_pdf_to_markdown(tmp_path)
         update(45, f"📄 Text extracted — {len(markdown_text):,} characters.")
 
-        update(55, "🤖 Asking Gemini 2.5 Flash to identify transactions…")
+        update(55, "🤖 Asking FinSight AI to identify transactions…")
         transactions = extract_transactions_from_markdown(markdown_text)
         update(80, f"✅ Found {len(transactions)} transactions.")
 
@@ -144,7 +150,7 @@ def _render_charts(df: pd.DataFrame) -> None:
         fig.update_traces(
             textposition="inside", textinfo="percent+label",
             textfont_size=11,
-            marker=dict(line=dict(color="#0f172a", width=2)),
+            marker=dict(line=dict(color="#080d1a", width=2)),
         )
         fig.update_layout(**PLOT_LAYOUT, showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
@@ -164,12 +170,12 @@ def _render_charts(df: pd.DataFrame) -> None:
         fig.update_layout(
             **PLOT_LAYOUT,
             yaxis=dict(categoryorder="total ascending", tickfont=dict(color="#94a3b8")),
-            xaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)", tickfont=dict(color="#64748b")),
+            xaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)",
+                       tickfont=dict(color="#64748b")),
             bargap=0.3,
         )
         st.plotly_chart(fig, use_container_width=True)
 
-    # Monthly trend
     if "date" in df.columns and df["date"].notna().any():
         st.subheader("Monthly Spending Trend")
         trend = expenses.copy()
@@ -181,7 +187,7 @@ def _render_charts(df: pd.DataFrame) -> None:
         if not monthly.empty:
             fig = px.bar(
                 monthly, x="month", y="amount_abs", color="category",
-                labels={"amount_abs": "Amount ($)", "month": "Month"},
+                labels={"amount_abs": "Amount ($)", "month": "Month", "category": ""},
                 color_discrete_map=CATEGORY_COLORS,
             )
             fig.update_layout(
@@ -189,20 +195,28 @@ def _render_charts(df: pd.DataFrame) -> None:
                 xaxis=dict(tickfont=dict(color="#94a3b8")),
                 yaxis=dict(gridcolor="rgba(255,255,255,0.05)", tickfont=dict(color="#64748b")),
                 legend=dict(
-                    bgcolor="rgba(30,41,59,0.8)", bordercolor="rgba(255,255,255,0.1)",
-                    borderwidth=1, font=dict(color="#94a3b8"),
+                    title=dict(text=""),          # remove "category" header
+                    bgcolor="rgba(17,24,39,0.85)",
+                    bordercolor="rgba(255,255,255,0.08)",
+                    borderwidth=1,
+                    font=dict(color="#94a3b8", size=12),
+                    itemsizing="constant",
+                    tracegroupgap=4,
+                    x=1.01, xanchor="left",       # pin legend to the right
                 ),
                 bargap=0.2,
             )
             st.plotly_chart(fig, use_container_width=True)
 
 
+# ── Add transaction dialog ────────────────────────────────────────────────────
+
 @st.dialog("Add Transaction")
 def _manual_entry_dialog() -> None:
-    # No st.form here — it prevents the date-picker calendar from closing
     c1, c2 = st.columns(2)
     with c1:
-        date_str = st.text_input("Date", value=_date.today().strftime("%Y-%m-%d"), placeholder="YYYY-MM-DD")
+        date_str = st.text_input("Date", value=_date.today().strftime("%Y-%m-%d"),
+                                 placeholder="YYYY-MM-DD")
         txn_type = st.selectbox("Type", ["Expense", "Income"])
     with c2:
         desc   = st.text_input("Description", placeholder="e.g. Grocery store, Salary")
@@ -215,7 +229,7 @@ def _manual_entry_dialog() -> None:
         try:
             _date.fromisoformat(date_str)
         except ValueError:
-            st.error("Invalid date — use YYYY-MM-DD format (e.g. 2026-04-04).")
+            st.error("Invalid date — use YYYY-MM-DD format.")
             st.stop()
         if not desc.strip():
             st.error("Description is required.")
@@ -238,17 +252,247 @@ def _manual_entry_dialog() -> None:
                 st.rerun()
 
 
+# ── Edit transaction dialog ───────────────────────────────────────────────────
+
+@st.dialog("Edit Transaction")
+def _edit_transaction_dialog(txn: dict) -> None:
+    txn_id = txn.get("id", "")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        current_date = str(txn.get("date", _date.today().strftime("%Y-%m-%d")))[:10]
+        date_str = st.text_input("Date", value=current_date, placeholder="YYYY-MM-DD")
+        current_amt = float(txn.get("amount", 0))
+        txn_type = st.selectbox(
+            "Type",
+            ["Expense", "Income"],
+            index=0 if current_amt <= 0 else 1,
+        )
+    with c2:
+        desc = st.text_input("Description", value=txn.get("description", ""))
+        amount = st.number_input(
+            "Amount ($)", min_value=0.01, step=0.01, format="%.2f",
+            value=abs(current_amt) or 0.01,
+        )
+
+    cats = list(CATEGORY_COLORS.keys())
+    current_cat = txn.get("category", "Other")
+    cat_idx = cats.index(current_cat) if current_cat in cats else 0
+    category = st.selectbox("Category", cats, index=cat_idx)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    save_col, del_col = st.columns([3, 1])
+
+    with save_col:
+        if st.button("💾 Save Changes", type="primary", use_container_width=True):
+            try:
+                _date.fromisoformat(date_str)
+            except ValueError:
+                st.error("Invalid date — use YYYY-MM-DD format.")
+                st.stop()
+            if not desc.strip():
+                st.error("Description is required.")
+                st.stop()
+            signed_amount = -abs(amount) if txn_type == "Expense" else abs(amount)
+            res = update_transaction(
+                st.session_state.user_id,
+                txn_id,
+                {
+                    "date":        date_str,
+                    "description": desc.strip(),
+                    "amount":      signed_amount,
+                    "category":    category,
+                },
+            )
+            if res["error"]:
+                st.error(f"Could not update: {res['error']}")
+            else:
+                st.session_state.pop("transactions", None)
+                st.rerun()
+
+    with del_col:
+        if st.button("🗑️ Delete", use_container_width=True):
+            st.session_state["_confirm_delete_id"] = txn_id
+            st.rerun()
+
+
+# ── Delete confirmation dialog ────────────────────────────────────────────────
+
+@st.dialog("Confirm Delete")
+def _confirm_delete_dialog(txn_id: str, desc: str) -> None:
+    st.warning(f"Are you sure you want to delete **\"{desc}\"**? This cannot be undone.")
+    col_yes, col_no = st.columns(2)
+    with col_yes:
+        if st.button("Yes, delete", type="primary", use_container_width=True):
+            res = delete_transaction(st.session_state.user_id, txn_id)
+            if res["error"]:
+                st.error(f"Could not delete: {res['error']}")
+            else:
+                st.session_state.pop("transactions", None)
+                st.session_state.pop("_confirm_delete_id", None)
+                st.rerun()
+    with col_no:
+        if st.button("Cancel", use_container_width=True):
+            st.session_state.pop("_confirm_delete_id", None)
+            st.rerun()
+
+
+# ── Manage transactions section ───────────────────────────────────────────────
+
+def _render_manage_section(df: pd.DataFrame) -> None:
+    if df.empty or "id" not in df.columns:
+        return
+
+    with st.expander("✏️  Edit or Delete a Transaction", expanded=False):
+        st.caption("Select a transaction from the list to edit its details or remove it.")
+
+        # Build display labels
+        def _label(row: pd.Series) -> str:
+            date_part = str(row.get("date", ""))[:10]
+            desc_part = str(row.get("description", ""))[:40]
+            amt       = row.get("amount", 0)
+            sign      = "-" if float(amt) < 0 else "+"
+            return f"{date_part}  ·  {desc_part}  ·  {sign}${abs(float(amt)):,.2f}"
+
+        labels = df.apply(_label, axis=1).tolist()
+        ids    = df["id"].tolist()
+
+        selected_idx = st.selectbox(
+            "Choose transaction",
+            range(len(labels)),
+            format_func=lambda i: labels[i],
+            label_visibility="collapsed",
+        )
+
+        if selected_idx is not None:
+            row    = df.iloc[selected_idx]
+            txn_id = ids[selected_idx]
+            txn    = row.to_dict()
+
+            col_edit, col_del, _ = st.columns([1, 1, 4])
+            with col_edit:
+                if st.button("✏️  Edit", key="btn_edit", use_container_width=True):
+                    _edit_transaction_dialog(txn)
+            with col_del:
+                if st.button("🗑️  Delete", key="btn_del", use_container_width=True):
+                    _confirm_delete_dialog(txn_id, str(txn.get("description", "")))
+
+
+# ── Scroll helper (robust across Streamlit versions) ─────────────────────────
+
+_SCROLL_JS = """
+<script>
+(function() {
+    function doScroll() {
+        try {
+            var p = window.parent;
+            p.scrollTo(0, 0);
+            p.document.documentElement.scrollTop = 0;
+            p.document.body.scrollTop = 0;
+            ['section.main',
+             '[data-testid="stMainBlockContainer"]',
+             '[data-testid="stAppViewBlockContainer"]',
+             '[data-testid="stMain"]',
+             '.main'].forEach(function(s) {
+                var el = p.document.querySelector(s);
+                if (el) el.scrollTop = 0;
+            });
+        } catch(e) {}
+    }
+    doScroll();
+    setTimeout(doScroll, 150);
+    setTimeout(doScroll, 400);
+    setTimeout(doScroll, 800);
+})();
+</script>
+"""
+
+
+# ── Month filter helper ───────────────────────────────────────────────────────
+
+def _build_month_options(df: pd.DataFrame) -> list[str]:
+    """Return sorted list of 'YYYY-MM' strings present in df, newest first."""
+    if df.empty or "date" not in df.columns:
+        return []
+    dates = pd.to_datetime(df["date"], errors="coerce").dropna()
+    months = sorted(dates.dt.to_period("M").astype(str).unique(), reverse=True)
+    return months
+
+
+def _filter_by_month(df: pd.DataFrame, month: str) -> pd.DataFrame:
+    """Return rows whose date falls in the given 'YYYY-MM' period."""
+    if month == "All Time" or df.empty or "date" not in df.columns:
+        return df
+    dates = pd.to_datetime(df["date"], errors="coerce")
+    mask  = dates.dt.to_period("M").astype(str) == month
+    return df[mask].copy()
+
+
+def _fmt_month(m: str) -> str:
+    """'2026-04' → 'April 2026'"""
+    try:
+        return pd.Period(m, freq="M").strftime("%B %Y")
+    except Exception:
+        return m
+
+
+# ── Main render ───────────────────────────────────────────────────────────────
+
 def render() -> None:
-    title_col, btn_col = st.columns([5, 1])
+    # ── Scroll to top ─────────────────────────────────────────────────────────
+    _stc.html(_SCROLL_JS, height=1)
+
+    # ── Pending delete confirmation (survives rerun) ───────────────────────────
+    if "_confirm_delete_id" in st.session_state:
+        pending_id   = st.session_state["_confirm_delete_id"]
+        txns         = st.session_state.get("transactions", [])
+        pending_desc = next(
+            (t.get("description", "") for t in txns if t.get("id") == pending_id), ""
+        )
+        _confirm_delete_dialog(pending_id, pending_desc)
+
+    # ── Load transactions (always from cache first) ────────────────────────────
+    if "transactions" not in st.session_state:
+        _load_transactions()
+    transactions = st.session_state.get("transactions", [])
+
+    df_full = pd.DataFrame(transactions) if transactions else pd.DataFrame()
+    if not df_full.empty:
+        df_full["amount"] = pd.to_numeric(df_full["amount"], errors="coerce").fillna(0)
+
+    # ── Scroll-to-manage (injected on next render after button click) ────────────
+    if st.session_state.pop("scroll_to_manage", False):
+        _stc.html(
+            """<script>
+            setTimeout(function() {
+                try {
+                    var els = window.parent.document.getElementsByClassName('manage-section-anchor');
+                    if (els.length) els[0].scrollIntoView({behavior:'smooth', block:'start'});
+                } catch(e) {}
+            }, 250);
+            </script>""",
+            height=0,
+        )
+
+    # ── Header row ─────────────────────────────────────────────────────────────
+    title_col, add_col, manage_col = st.columns([3, 1.2, 1.4])
     with title_col:
         st.title("📊 Dashboard")
-    with btn_col:
+    with add_col:
         st.markdown("<div style='padding-top:1.1rem'>", unsafe_allow_html=True)
         if st.button("➕ Add Transaction", type="primary", use_container_width=True):
             _manual_entry_dialog()
         st.markdown("</div>", unsafe_allow_html=True)
+    with manage_col:
+        st.markdown("<div style='padding-top:1.1rem'>", unsafe_allow_html=True)
+        if st.button("✏️ Manage Transactions", use_container_width=True,
+                     help="Edit or delete existing transactions"):
+            st.session_state.show_manage = not st.session_state.get("show_manage", False)
+            st.session_state.scroll_to_manage = True
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # Upload section
+    # ── Upload section ─────────────────────────────────────────────────────────
     st.subheader("Upload Bank Statement")
 
     uploaded_file = st.file_uploader(
@@ -259,7 +503,6 @@ def render() -> None:
 
     if uploaded_file is not None:
         col_btn, col_info, _ = st.columns([1, 3, 2])
-
         with col_info:
             st.markdown(
                 f"<div style='padding:0.55rem 0;color:#94a3b8;font-size:0.875rem'>"
@@ -267,23 +510,20 @@ def render() -> None:
                 f"({uploaded_file.size / 1024:.1f} KB) ready to upload</div>",
                 unsafe_allow_html=True,
             )
-
         with col_btn:
             upload_clicked = st.button(
                 "⬆️ Upload & Process", type="primary", use_container_width=True
             )
 
         if upload_clicked:
-            # Clear any previous error state so the same file can be retried
             st.session_state.pop("last_uploaded_file", None)
-
             already_imported = file_already_imported(
                 st.session_state.user_id, uploaded_file.name
             )
             if already_imported:
                 st.warning(
                     f"**{uploaded_file.name}** was already imported. "
-                    "Duplicate rows will be skipped automatically by the database."
+                    "Duplicate rows will be skipped automatically."
                 )
                 col_yes, col_no, _ = st.columns([1, 1, 4])
                 with col_yes:
@@ -297,19 +537,35 @@ def render() -> None:
 
     st.divider()
 
-    # Transactions section
-    st.subheader("Your Transactions")
-    if "transactions" not in st.session_state:
-        transactions = _load_transactions()
-    else:
-        transactions = st.session_state.transactions
-
-    if not transactions:
+    # ── No data yet ────────────────────────────────────────────────────────────
+    if df_full.empty:
         st.info("No transactions yet. Upload a PDF statement above to get started.")
         return
 
-    df = pd.DataFrame(transactions)
-    df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0)
+    # ── Month filter ───────────────────────────────────────────────────────────
+    month_options = ["All Time"] + _build_month_options(df_full)
+
+    filter_col, _ = st.columns([2, 5])
+    with filter_col:
+        selected_month = st.selectbox(
+            "📅  Filter by month",
+            month_options,
+            format_func=lambda m: m if m == "All Time" else _fmt_month(m),
+            key="dash_month_filter",
+        )
+
+    df = _filter_by_month(df_full, selected_month)
+
+    if df.empty:
+        st.info(f"No transactions found for {_fmt_month(selected_month)}.")
+        return
+
+    # ── Metrics ────────────────────────────────────────────────────────────────
+    st.subheader(
+        "Your Transactions"
+        if selected_month == "All Time"
+        else f"Transactions — {_fmt_month(selected_month)}"
+    )
 
     total_income   = df[df["amount"] > 0]["amount"].sum()
     total_expenses = df[df["amount"] < 0]["amount"].abs().sum()
@@ -324,9 +580,22 @@ def render() -> None:
     st.divider()
     _render_charts(df)
 
+    # ── Manage Transactions — anchor + panel sit ABOVE the transactions table ──
+    st.markdown('<div class="manage-section-anchor"></div>', unsafe_allow_html=True)
+
+    if st.session_state.get("show_manage"):
+        st.subheader("✏️ Manage Transactions")
+        if df_full.empty:
+            st.info("No transactions to manage yet.")
+        else:
+            _render_manage_section(df_full)
+        st.divider()
+
     st.subheader("All Transactions")
-    display_cols = [c for c in ["date", "description", "amount", "category", "source_file"] if c in df.columns]
+    display_cols = [c for c in ["date", "description", "amount", "category", "source_file"]
+                    if c in df.columns]
     st.dataframe(
         df[display_cols].sort_values("date", ascending=False, na_position="last"),
-        use_container_width=True, hide_index=True,
+        use_container_width=True,
+        hide_index=True,
     )

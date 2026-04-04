@@ -1,16 +1,17 @@
 """
 AI Insights page.
 
-Auto-analyses the user's transaction history against their budgets and surfaces:
-  • A spending health score
-  • Budget alerts (categories close to or over the limit)
-  • Predicted end-of-month spend per category
-  • Specific, actionable recommendations (e.g. "Skip the cinema this weekend")
-  • A follow-up chat for custom questions
+Layout order (most actionable → least):
+  1. 💡 Recommendations  ← moved to top
+  2. 📊 Spending Health Score
+  3. ⚠️ Budget Alerts
+  4. 📈 End-of-Month Predictions
+  5. 💬 AI Chat
 """
 
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as _stc
 
 from backend.ai_engine import answer_finance_question, generate_spending_insights
 from backend.supabase_client import fetch_budgets, fetch_transactions
@@ -23,6 +24,135 @@ SEVERITY_STYLE = {
     "low":    ("🟢", "#22c55e", "rgba(34,197,94,0.1)"),
 }
 
+CHAT_CSS = """
+<style>
+/* ── AI Insights page extras ── */
+@keyframes ai-shimmer {
+    0%   { opacity: 0.5; }
+    50%  { opacity: 1;   }
+    100% { opacity: 0.5; }
+}
+.ai-loading-card {
+    /* Full-screen fixed overlay — covers any stray content behind it */
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    text-align: center;
+    background: #080d1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+.ai-loading-steps {
+    display: flex; justify-content: center; align-items: center;
+    gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem;
+}
+.ai-step-chip {
+    background: rgba(99,102,241,0.1);
+    border: 1px solid rgba(99,102,241,0.25);
+    border-radius: 99px; padding: 6px 16px;
+    font-size: 0.78rem; color: #818cf8; font-weight: 600;
+    animation: ai-shimmer 2s ease-in-out infinite;
+}
+.ai-step-chip:nth-child(2) { animation-delay: 0.4s; }
+.ai-step-chip:nth-child(3) { animation-delay: 0.8s; }
+.ai-step-chip:nth-child(4) { animation-delay: 1.2s; }
+
+/* ── Rec card ── */
+.rec-card {
+    background: #111827;
+    border: 1px solid rgba(99,102,241,0.2);
+    border-left: 3px solid #6366f1;
+    border-radius: 14px; padding: 1.1rem 1.25rem;
+    margin-bottom: 0.65rem;
+    display: flex; justify-content: space-between;
+    align-items: flex-start; gap: 1rem;
+}
+.rec-card-body { flex: 1; }
+.rec-card-title { font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+.rec-card-detail { font-size: 0.875rem; color: #64748b; line-height: 1.55; }
+.rec-card-cat {
+    font-size: 0.72rem; color: #6366f1; margin-top: 6px;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+}
+.rec-card-savings { text-align: center; min-width: 80px; }
+.rec-savings-label {
+    font-size: 0.65rem; color: #475569; text-transform: uppercase;
+    letter-spacing: 0.1em; margin-bottom: 2px;
+}
+.rec-savings-value { font-size: 1.2rem; font-weight: 800; color: #22c55e; }
+
+/* ── Chat section ── */
+.chat-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 1.25rem 1.5rem;
+    background: linear-gradient(135deg, #111827, #0f1623);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-bottom: none;
+    border-radius: 16px 16px 0 0;
+}
+.chat-header-icon { font-size: 1.5rem; line-height: 1; }
+.chat-header-title { font-size: 1rem; font-weight: 700; color: #f1f5f9; }
+.chat-header-sub { font-size: 0.78rem; color: #475569; }
+
+.chat-examples {
+    display: flex; flex-wrap: wrap; gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+.chat-empty-state {
+    text-align: center; padding: 2rem 1rem;
+    color: #334155; font-size: 0.875rem;
+}
+
+/* ── Prediction rows ── */
+.pred-row {
+    background: #111827;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 14px; padding: 1rem 1.25rem;
+    margin-bottom: 0.6rem;
+}
+.pred-meta {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 8px;
+}
+.pred-title { font-weight: 600; color: #f1f5f9; }
+.pred-reason { font-size: 0.78rem; color: #64748b; }
+.pred-numbers { display: flex; gap: 2rem; margin-bottom: 10px; }
+.pred-num-group { }
+.pred-num-label {
+    font-size: 0.68rem; color: #475569; text-transform: uppercase;
+    letter-spacing: 0.08em; margin-bottom: 2px;
+}
+.pred-num-value { font-size: 1.05rem; font-weight: 700; color: #f1f5f9; }
+.pred-bar-wrap {
+    background: rgba(255,255,255,0.06);
+    border-radius: 99px; height: 6px; overflow: hidden;
+}
+.pred-bar-fill {
+    height: 100%; border-radius: 99px; transition: width 0.4s;
+}
+
+/* ── Alert cards ── */
+.alert-card {
+    border-radius: 14px; padding: 1rem 1.1rem; margin-bottom: 0.5rem;
+}
+.alert-cat {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em; margin-bottom: 6px;
+}
+.alert-msg { font-size: 0.875rem; color: #e2e8f0; line-height: 1.5; }
+</style>
+"""
+
+EXAMPLE_QUESTIONS = [
+    "Where can I cut back most?",
+    "How much did I spend on food?",
+    "Am I on track with my budget?",
+    "What's my biggest expense this month?",
+]
+
 
 def _score_color(score: int) -> str:
     if score >= 75: return "#22c55e"
@@ -34,8 +164,8 @@ def _score_label(score: int) -> str:
     if score >= 80: return "Excellent"
     if score >= 65: return "Good"
     if score >= 50: return "Fair"
-    if score >= 30: return "Needs attention"
-    return "Over budget"
+    if score >= 30: return "Needs Attention"
+    return "Over Budget"
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -50,7 +180,78 @@ def _load_data() -> tuple[list[dict], list[dict]]:
     return transactions, budgets
 
 
+# ── Loading state ─────────────────────────────────────────────────────────────
+
+def _show_loading_card() -> None:
+    st.markdown(
+        """
+        <div class="ai-loading-card">
+            <div style="font-size:4rem;margin-bottom:1.25rem;
+                        filter:drop-shadow(0 0 20px rgba(99,102,241,0.5))">🤖</div>
+            <h3 style="color:#f1f5f9;font-size:1.5rem;font-weight:800;
+                       margin-bottom:0.5rem;letter-spacing:-0.3px">
+                FinSight AI is analysing your finances
+            </h3>
+            <p style="color:#475569;font-size:0.9rem;max-width:420px;
+                      margin:0 auto 1.5rem;line-height:1.6">
+                Reading your transactions, calculating patterns,
+                and generating personalised insights…
+            </p>
+            <div class="ai-loading-steps">
+                <span class="ai-step-chip">📊 Reading transactions</span>
+                <span class="ai-step-chip">🏷️ Analysing categories</span>
+                <span class="ai-step-chip">📈 Calculating trends</span>
+                <span class="ai-step-chip">💡 Generating insights</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # ── Section renderers ─────────────────────────────────────────────────────────
+
+def _render_recommendations(recommendations: list[dict]) -> None:
+    if not recommendations:
+        st.markdown(
+            """
+            <div style="text-align:center;padding:1.5rem;color:#334155;font-size:0.875rem;
+                        background:#111827;border-radius:14px;border:1px solid rgba(255,255,255,0.06)">
+                🎉 No specific recommendations right now — your spending looks healthy!
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        return
+
+    for rec in recommendations:
+        savings = float(rec.get("estimated_savings", 0))
+        cat     = rec.get("category", "")
+        title   = rec.get("title", "")
+        detail  = rec.get("detail", "")
+
+        savings_html = (
+            f'<div class="rec-card-savings">'
+            f'<div class="rec-savings-label">Save up to</div>'
+            f'<div class="rec-savings-value">${savings:,.0f}</div>'
+            f'</div>'
+            if savings > 0 else ""
+        )
+
+        st.markdown(
+            f"""
+            <div class="rec-card">
+                <div class="rec-card-body">
+                    <div class="rec-card-title">💡 {title}</div>
+                    <div class="rec-card-detail">{detail}</div>
+                    <div class="rec-card-cat">{cat}</div>
+                </div>
+                {savings_html}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
 
 def _render_health_score(score: int, summary: str) -> None:
     color = _score_color(score)
@@ -83,8 +284,8 @@ def _render_health_score(score: int, summary: str) -> None:
         )
         st.plotly_chart(fig, use_container_width=True)
         st.markdown(
-            f"<p style='text-align:center;font-size:1rem;font-weight:700;color:{color};margin-top:-12px'>"
-            f"{label}</p>",
+            f"<p style='text-align:center;font-size:1rem;font-weight:800;color:{color};"
+            f"margin-top:-12px;letter-spacing:-0.2px'>{label}</p>",
             unsafe_allow_html=True,
         )
 
@@ -92,12 +293,9 @@ def _render_health_score(score: int, summary: str) -> None:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
             f"""
-            <div style="
-                background:rgba(255,255,255,0.03);
-                border:1px solid rgba(255,255,255,0.07);
-                border-left:3px solid {color};
-                border-radius:12px;padding:1.1rem 1.3rem;
-            ">
+            <div style="background:#111827;border:1px solid rgba(255,255,255,0.07);
+                        border-left:3px solid {color};border-radius:14px;
+                        padding:1.1rem 1.3rem;">
                 <p style="color:#e2e8f0;font-size:0.95rem;margin:0;line-height:1.6">{summary}</p>
             </div>
             """,
@@ -107,7 +305,15 @@ def _render_health_score(score: int, summary: str) -> None:
 
 def _render_alerts(alerts: list[dict]) -> None:
     if not alerts:
-        st.success("No budget alerts — you're on track across all categories.")
+        st.markdown(
+            """
+            <div style="text-align:center;padding:1rem;color:#334155;font-size:0.875rem;
+                        background:#111827;border-radius:14px;border:1px solid rgba(255,255,255,0.06)">
+                ✅ No budget alerts — you're on track across all categories.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         return
 
     cols = st.columns(min(len(alerts), 3))
@@ -116,17 +322,9 @@ def _render_alerts(alerts: list[dict]) -> None:
         with cols[i % 3]:
             st.markdown(
                 f"""
-                <div style="
-                    background:{bg};border:1px solid {color}33;
-                    border-radius:12px;padding:1rem;margin-bottom:0.5rem;
-                ">
-                    <div style="font-size:0.75rem;font-weight:700;color:{color};
-                                text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">
-                        {icon} {alert.get('category','')}
-                    </div>
-                    <div style="color:#e2e8f0;font-size:0.875rem;line-height:1.5">
-                        {alert.get('message','')}
-                    </div>
+                <div class="alert-card" style="background:{bg};border:1px solid {color}33">
+                    <div class="alert-cat" style="color:{color}">{icon} {alert.get('category','')}</div>
+                    <div class="alert-msg">{alert.get('message','')}</div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -135,7 +333,15 @@ def _render_alerts(alerts: list[dict]) -> None:
 
 def _render_predictions(predictions: list[dict]) -> None:
     if not predictions:
-        st.info("Not enough data to generate predictions yet.")
+        st.markdown(
+            """
+            <div style="text-align:center;padding:1rem;color:#334155;font-size:0.875rem;
+                        background:#111827;border-radius:14px;border:1px solid rgba(255,255,255,0.06)">
+                Not enough data to generate predictions yet.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         return
 
     for pred in predictions:
@@ -146,142 +352,141 @@ def _render_predictions(predictions: list[dict]) -> None:
         exceed    = pred.get("will_exceed", False)
         reason    = pred.get("reason", "")
 
-        budget_val   = float(budget) if budget else None
-        pct          = min((predicted / budget_val * 100), 100) if budget_val else None
-        bar_color    = "#ef4444" if exceed else "#6366f1"
-        status_icon  = "⚠️" if exceed else "✅"
+        budget_val  = float(budget) if budget else None
+        pct         = min((predicted / budget_val * 100), 100) if budget_val else None
+        bar_color   = "#ef4444" if exceed else "#6366f1"
+        status_icon = "⚠️" if exceed else "✅"
+
+        budget_html = (
+            f'<div class="pred-num-group">'
+            f'<div class="pred-num-label">Budget</div>'
+            f'<div class="pred-num-value" style="color:#94a3b8">${budget_val:,.2f}</div>'
+            f'</div>'
+            if budget_val else ""
+        )
+        bar_html = (
+            f'<div class="pred-bar-wrap">'
+            f'<div class="pred-bar-fill" style="width:{pct:.1f}%;background:{bar_color}"></div>'
+            f'</div>'
+            if pct is not None else ""
+        )
 
         st.markdown(
             f"""
-            <div style="
-                background:#1e293b;border:1px solid rgba(255,255,255,0.07);
-                border-radius:12px;padding:1rem 1.2rem;margin-bottom:0.6rem;
-            ">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-                    <span style="font-weight:600;color:#f1f5f9">{status_icon} {cat}</span>
-                    <span style="font-size:0.8rem;color:#64748b">{reason}</span>
+            <div class="pred-row">
+                <div class="pred-meta">
+                    <span class="pred-title">{status_icon} {cat}</span>
+                    <span class="pred-reason">{reason}</span>
                 </div>
-                <div style="display:flex;gap:2rem;margin-bottom:10px">
-                    <div>
-                        <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Spent so far</div>
-                        <div style="font-size:1.1rem;font-weight:700;color:#f1f5f9">${spent:,.2f}</div>
+                <div class="pred-numbers">
+                    <div class="pred-num-group">
+                        <div class="pred-num-label">Spent so far</div>
+                        <div class="pred-num-value">${spent:,.2f}</div>
                     </div>
-                    <div>
-                        <div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Predicted total</div>
-                        <div style="font-size:1.1rem;font-weight:700;color:{'#ef4444' if exceed else '#f59e0b'}">${predicted:,.2f}</div>
+                    <div class="pred-num-group">
+                        <div class="pred-num-label">Predicted total</div>
+                        <div class="pred-num-value" style="color:{'#ef4444' if exceed else '#f59e0b'}">${predicted:,.2f}</div>
                     </div>
-                    {f'<div><div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Budget</div><div style="font-size:1.1rem;font-weight:700;color:#94a3b8">${budget_val:,.2f}</div></div>' if budget_val else ''}
+                    {budget_html}
                 </div>
-                {f'<div style="background:rgba(255,255,255,0.06);border-radius:99px;height:6px;overflow:hidden"><div style="height:100%;width:{pct:.1f}%;background:{bar_color};border-radius:99px;transition:width 0.3s"></div></div>' if pct is not None else ''}
+                {bar_html}
             </div>
             """,
             unsafe_allow_html=True,
         )
 
 
-def _render_recommendations(recommendations: list[dict]) -> None:
-    if not recommendations:
-        st.info("No specific recommendations right now — keep it up!")
-        return
+# ── Chat section ──────────────────────────────────────────────────────────────
 
-    for rec in recommendations:
-        savings = float(rec.get("estimated_savings", 0))
-        cat     = rec.get("category", "")
-        title   = rec.get("title", "")
-        detail  = rec.get("detail", "")
+_SCROLL_TO_CHAT_JS = """
+<script>
+setTimeout(function() {
+    try {
+        var el = window.parent.document.querySelector('.chat-section-anchor');
+        if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+    } catch(e) {}
+}, 80);
+</script>
+"""
 
-        st.markdown(
-            f"""
-            <div style="
-                background:#1e293b;
-                border:1px solid rgba(99,102,241,0.2);
-                border-left:3px solid #6366f1;
-                border-radius:12px;padding:1rem 1.2rem;margin-bottom:0.6rem;
-                display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;
-            ">
-                <div style="flex:1">
-                    <div style="font-weight:600;color:#f1f5f9;margin-bottom:4px">💡 {title}</div>
-                    <div style="font-size:0.875rem;color:#94a3b8;line-height:1.5">{detail}</div>
-                    <div style="font-size:0.75rem;color:#6366f1;margin-top:6px;font-weight:600">
-                        {cat}
-                    </div>
-                </div>
-                {f'<div style="text-align:center;min-width:80px"><div style="font-size:0.7rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Save up to</div><div style="font-size:1.2rem;font-weight:700;color:#22c55e">${savings:,.0f}</div></div>' if savings > 0 else ''}
+_SCROLL_TO_BOTTOM_JS = """
+<script>
+(function() {
+    function scrollBottom() {
+        try {
+            var p = window.parent;
+            p.scrollTo(0, p.document.body.scrollHeight);
+            ['section.main',
+             '[data-testid="stMainBlockContainer"]',
+             '[data-testid="stAppViewBlockContainer"]',
+             '[data-testid="stMain"]'].forEach(function(s) {
+                var el = p.document.querySelector(s);
+                if (el) el.scrollTop = el.scrollHeight;
+            });
+        } catch(e) {}
+    }
+    setTimeout(scrollBottom, 200);
+    setTimeout(scrollBottom, 500);
+    setTimeout(scrollBottom, 900);
+})();
+</script>
+"""
+
+
+def _render_chat(transactions: list[dict]) -> None:
+    # Invisible anchor — JS scrolls to this when user submits a question
+    st.markdown('<div class="chat-section-anchor"></div>', unsafe_allow_html=True)
+
+    st.markdown(
+        """
+        <div class="chat-header">
+            <div class="chat-header-icon">💬</div>
+            <div>
+                <div class="chat-header-title">Ask FinSight AI</div>
+                <div class="chat-header-sub">Ask anything about your spending, budgets, or financial habits</div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
-# ── Main render ───────────────────────────────────────────────────────────────
-
-def render() -> None:
-    st.title("🧠 AI Insights")
-    st.caption("Real-time analysis of your spending patterns, predictions, and actionable recommendations.")
-
-    transactions, budgets = _load_data()
-
-    if not transactions:
-        st.info("No transaction data yet. Upload a bank statement from the Dashboard to unlock AI insights.")
-        return
-
-    # Generate / cache insights
-    cache_key = f"insights_{st.session_state.user_id}"
-    col_refresh, _ = st.columns([1, 5])
-    with col_refresh:
-        refresh = st.button("🔄 Refresh insights")
-
-    if cache_key not in st.session_state or refresh:
-        with st.spinner("🤖 Gemini 2.5 Flash is analysing your spending patterns…"):
-            try:
-                insights = generate_spending_insights(transactions, budgets)
-                st.session_state[cache_key] = insights
-            except Exception as exc:
-                st.error(f"Could not generate insights: {exc}")
-                return
-    else:
-        insights = st.session_state[cache_key]
-
-    # ── Spending Health Score ─────────────────────────────────────────────────
-    st.subheader("Spending Health")
-    _render_health_score(
-        insights.get("health_score", 50),
-        insights.get("summary", ""),
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-
-    st.divider()
-
-    # ── Alerts ────────────────────────────────────────────────────────────────
-    st.subheader("⚠️ Budget Alerts")
-    _render_alerts(insights.get("alerts", []))
-
-    st.divider()
-
-    # ── Predictions ───────────────────────────────────────────────────────────
-    st.subheader("📈 End-of-Month Predictions")
-    st.caption("Based on your spending pace this month.")
-    _render_predictions(insights.get("predictions", []))
-
-    st.divider()
-
-    # ── Recommendations ───────────────────────────────────────────────────────
-    st.subheader("💡 Recommendations")
-    st.caption("Specific actions based on your actual transaction patterns.")
-    _render_recommendations(insights.get("recommendations", []))
-
-    st.divider()
-
-    # ── Follow-up chat ────────────────────────────────────────────────────────
-    st.subheader("💬 Ask a Follow-up Question")
 
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = []
 
+    # ── Example question chips ────────────────────────────────────────────────
+    if not st.session_state.chat_messages:
+        st.markdown(
+            "<p style='color:#475569;font-size:0.8rem;margin:1rem 0 0.5rem;"
+            "font-weight:600;text-transform:uppercase;letter-spacing:0.08em'>"
+            "Try asking:</p>",
+            unsafe_allow_html=True,
+        )
+        chip_cols = st.columns(len(EXAMPLE_QUESTIONS))
+        for i, q in enumerate(EXAMPLE_QUESTIONS):
+            with chip_cols[i]:
+                if st.button(q, key=f"chip_{i}", use_container_width=True):
+                    st.session_state.chat_prefill = q
+                    st.session_state.scroll_to_chat = True
+                    st.rerun()
+
+    # Handle pre-filled question from chip click
+    prefill_prompt = st.session_state.pop("chat_prefill", None)
+
+    # If a chip was clicked, scroll to chat on this render
+    if st.session_state.pop("scroll_to_chat", False):
+        _stc.html(_SCROLL_TO_CHAT_JS, height=1)
+
+    # Show existing messages
     for msg in st.session_state.chat_messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    if prompt := st.chat_input("Ask anything about your spending…"):
+    # Chat input — scroll to chat section as soon as user submits
+    prompt = st.chat_input("Ask anything about your spending…") or prefill_prompt
+    if prompt:
+        # Scroll to chat section immediately when user submits
+        _stc.html(_SCROLL_TO_CHAT_JS, height=1)
+
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -295,9 +500,124 @@ def render() -> None:
                 except Exception as exc:
                     reply = f"Error: {exc}"
             st.markdown(reply)
+        # Scroll to bottom AFTER response renders so user sees the latest reply
+        _stc.html(_SCROLL_TO_BOTTOM_JS, height=1)
         st.session_state.chat_messages.append({"role": "assistant", "content": reply})
 
     if st.session_state.chat_messages:
-        if st.button("🗑️ Clear chat"):
+        if st.button("🗑️ Clear chat history"):
             st.session_state.chat_messages = []
             st.rerun()
+
+
+# ── Main render ───────────────────────────────────────────────────────────────
+
+def render() -> None:
+    # Scroll to top on tab switch — called repeatedly to beat Streamlit's lazy render
+    _stc.html(
+        """<script>
+        (function(){
+            function doScroll(){
+                try {
+                    var p = window.parent;
+                    p.scrollTo(0, 0);
+                    p.document.documentElement.scrollTop = 0;
+                    p.document.body.scrollTop = 0;
+                    ['section.main','[data-testid="stMainBlockContainer"]',
+                     '[data-testid="stAppViewBlockContainer"]',
+                     '[data-testid="stMain"]','.main'].forEach(function(s){
+                        var el = p.document.querySelector(s);
+                        if (el) el.scrollTop = 0;
+                    });
+                } catch(e) {}
+            }
+            doScroll();
+            setTimeout(doScroll, 150);
+            setTimeout(doScroll, 400);
+            setTimeout(doScroll, 800);
+        })();
+        </script>""",
+        height=1,
+    )
+
+    st.markdown(CHAT_CSS, unsafe_allow_html=True)
+
+    # Header row
+    hdr_col, btn_col = st.columns([5, 1])
+    with hdr_col:
+        st.title("🧠 AI Insights")
+        st.caption("Powered by FinSight AI · Personalised analysis of your spending patterns.")
+    with btn_col:
+        st.markdown("<div style='padding-top:1.1rem'>", unsafe_allow_html=True)
+        refresh = st.button("🔄 Refresh", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    transactions, budgets = _load_data()
+
+    if not transactions:
+        st.markdown(
+            """
+            <div style="text-align:center;padding:4rem 2rem;background:#111827;
+                        border:1px solid rgba(255,255,255,0.07);border-radius:20px;margin:1rem 0">
+                <div style="font-size:3rem;margin-bottom:1rem">📂</div>
+                <h3 style="color:#f1f5f9;margin-bottom:0.5rem">No transaction data yet</h3>
+                <p style="color:#64748b">Upload a bank statement from the Dashboard to unlock AI insights.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        return
+
+    cache_key = f"insights_{st.session_state.user_id}"
+
+    if cache_key not in st.session_state or refresh:
+        load_slot = st.empty()
+        with load_slot.container():
+            _show_loading_card()
+        try:
+            generated = generate_spending_insights(transactions, budgets)
+            st.session_state[cache_key] = generated
+        except Exception as exc:
+            load_slot.empty()
+            st.error(f"Could not generate insights: {exc}")
+            return
+        load_slot.empty()
+        # Rerun so the fresh render starts from the top.
+        # Insights are cached — the loading block won't run again.
+        st.rerun()
+
+    insights = st.session_state.get(cache_key)
+    if not insights:
+        return
+
+    # ── 1. Recommendations (most actionable — shown first) ────────────────────
+    st.subheader("💡 Recommendations")
+    st.caption("Specific actions based on your actual transaction patterns.")
+    _render_recommendations(insights.get("recommendations", []))
+
+    st.divider()
+
+    # ── 2. Spending Health Score ──────────────────────────────────────────────
+    st.subheader("📊 Spending Health Score")
+    _render_health_score(
+        insights.get("health_score", 50),
+        insights.get("summary", ""),
+    )
+
+    st.divider()
+
+    # ── 3. Budget Alerts ──────────────────────────────────────────────────────
+    st.subheader("⚠️ Budget Alerts")
+    _render_alerts(insights.get("alerts", []))
+
+    st.divider()
+
+    # ── 4. End-of-Month Predictions ───────────────────────────────────────────
+    st.subheader("📈 End-of-Month Predictions")
+    st.caption("Based on your spending pace so far this month.")
+    _render_predictions(insights.get("predictions", []))
+
+    st.divider()
+
+    # ── 5. AI Chat ────────────────────────────────────────────────────────────
+    _render_chat(transactions)

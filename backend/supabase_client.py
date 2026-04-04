@@ -186,6 +186,38 @@ def delete_transactions(user_id: str) -> dict:
         return {"data": [], "error": str(exc)}
 
 
+def delete_transaction(user_id: str, transaction_id: str) -> dict:
+    """Delete a single transaction by UUID."""
+    try:
+        result = (
+            get_client()
+            .table("transactions")
+            .delete()
+            .eq("user_id", user_id)
+            .eq("id", transaction_id)
+            .execute()
+        )
+        return {"data": result.data, "error": None}
+    except Exception as exc:
+        return {"data": [], "error": str(exc)}
+
+
+def update_transaction(user_id: str, transaction_id: str, updates: dict) -> dict:
+    """Update editable fields (date, description, amount, category) of one transaction."""
+    try:
+        result = (
+            get_client()
+            .table("transactions")
+            .update(updates)
+            .eq("user_id", user_id)
+            .eq("id", transaction_id)
+            .execute()
+        )
+        return {"data": result.data, "error": None}
+    except Exception as exc:
+        return {"data": [], "error": str(exc)}
+
+
 # ─── Budgets ──────────────────────────────────────────────────────────────────
 
 def upsert_budget(user_id: str, category: str, monthly_limit: float) -> dict:

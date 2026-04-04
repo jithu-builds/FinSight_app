@@ -142,32 +142,104 @@ def _handle_sign_up(email: str, password: str, confirm: str) -> None:
 
 AUTH_CSS = """
 <style>
-.stApp { background: linear-gradient(135deg, #0f0c29 0%, #1a1040 50%, #0f172a 100%); min-height: 100vh; }
-#MainMenu, footer, header { visibility: hidden; }
-.block-container { padding-top: 2rem !important; }
+.stApp {
+    background: linear-gradient(135deg, #060b18 0%, #0f0c29 40%, #080d1a 100%);
+    min-height: 100vh;
+}
+#MainMenu, footer { visibility: hidden; }
+header[data-testid="stHeader"] { display: none !important; }
+[data-testid="stSidebar"],
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"] { display: none !important; }
+.block-container { padding-top: 0.5rem !important; max-width: 100% !important; }
 
 .auth-card {
-    background: rgba(255,255,255,0.04); backdrop-filter: blur(24px);
+    background: rgba(255,255,255,0.035); backdrop-filter: blur(24px);
     border: 1px solid rgba(255,255,255,0.09); border-radius: 24px;
-    padding: 2.5rem 2.5rem 2rem; box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+    padding: 2.5rem 2.5rem 2rem; box-shadow: 0 30px 60px rgba(0,0,0,0.6);
 }
 .auth-logo { text-align:center; margin-bottom:0.25rem; }
 .auth-logo .icon { font-size:3rem; line-height:1; }
-.auth-logo h1 { font-size:1.75rem; font-weight:700; color:#f1f5f9; margin:0.35rem 0 0.2rem; letter-spacing:-0.5px; }
-.auth-logo p { color:#94a3b8; font-size:0.875rem; margin:0; }
-.auth-divider { height:1px; background:linear-gradient(to right,transparent,rgba(255,255,255,0.1),transparent); margin:1.5rem 0; }
+.auth-logo h1 {
+    font-size:1.75rem !important; font-weight:800 !important; color:#f1f5f9 !important;
+    margin:0.35rem 0 0.2rem !important; letter-spacing:-0.5px !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
+}
+.auth-logo .brand-sub {
+    font-size:0.72rem; font-weight:700; color:#334155;
+    text-transform:uppercase; letter-spacing:0.12em; margin-top:2px;
+}
+.auth-logo p { color:#64748b; font-size:0.875rem; margin:0.25rem 0 0; }
+.auth-divider {
+    height:1px;
+    background:linear-gradient(to right,transparent,rgba(255,255,255,0.1),transparent);
+    margin:1.5rem 0;
+}
+/* Back-to-home — fixed top-left */
+.auth-back-fixed {
+    position: fixed;
+    top: 1rem;
+    left: 1.25rem;
+    z-index: 9999;
+}
+.auth-back-fixed .stButton > button {
+    background: rgba(255,255,255,0.05) !important;
+    color: #94a3b8 !important;
+    box-shadow: none !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 8px !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+    padding: 0.4rem 1rem !important;
+    transition: color 0.15s, border-color 0.15s, background 0.15s !important;
+}
+.auth-back-fixed .stButton > button:hover {
+    color: #f1f5f9 !important;
+    background: rgba(255,255,255,0.09) !important;
+    border-color: rgba(255,255,255,0.2) !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
 
-.stTabs [data-baseweb="tab-list"] { background:rgba(255,255,255,0.04) !important; border-radius:12px !important; padding:4px !important; gap:4px !important; border:1px solid rgba(255,255,255,0.07) !important; }
-.stTabs [data-baseweb="tab"] { border-radius:9px !important; color:#94a3b8 !important; font-weight:500 !important; font-size:0.9rem !important; padding:0.5rem 1.25rem !important; }
-.stTabs [aria-selected="true"] { background:linear-gradient(135deg,#6366f1,#818cf8) !important; color:#fff !important; box-shadow:0 4px 12px rgba(99,102,241,0.4) !important; }
-.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display:none !important; }
+.stTabs [data-baseweb="tab-list"] {
+    background:rgba(255,255,255,0.04) !important; border-radius:12px !important;
+    padding:4px !important; gap:4px !important;
+    border:1px solid rgba(255,255,255,0.07) !important;
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius:9px !important; color:#64748b !important;
+    font-weight:600 !important; font-size:0.9rem !important;
+    padding:0.5rem 1.25rem !important;
+}
+.stTabs [aria-selected="true"] {
+    background:linear-gradient(135deg,#6366f1,#818cf8) !important;
+    color:#fff !important; box-shadow:0 4px 14px rgba(99,102,241,0.4) !important;
+}
+.stTabs [data-baseweb="tab-highlight"],
+.stTabs [data-baseweb="tab-border"] { display:none !important; }
 
-.stTextInput label { color:#94a3b8 !important; font-size:0.8rem !important; font-weight:600 !important; text-transform:uppercase !important; letter-spacing:0.08em !important; }
-.stTextInput input { background:rgba(255,255,255,0.05) !important; border:1px solid rgba(255,255,255,0.1) !important; border-radius:10px !important; color:#f1f5f9 !important; }
-.stTextInput input:focus { border-color:#6366f1 !important; box-shadow:0 0 0 3px rgba(99,102,241,0.2) !important; }
+.stTextInput label {
+    color:#475569 !important; font-size:0.75rem !important; font-weight:700 !important;
+    text-transform:uppercase !important; letter-spacing:0.09em !important;
+}
+.stTextInput input {
+    background:rgba(255,255,255,0.04) !important;
+    border:1px solid rgba(255,255,255,0.1) !important;
+    border-radius:10px !important; color:#f1f5f9 !important;
+}
+.stTextInput input:focus {
+    border-color:#6366f1 !important;
+    box-shadow:0 0 0 3px rgba(99,102,241,0.2) !important;
+}
 
-.stFormSubmitButton button { background:linear-gradient(135deg,#6366f1,#818cf8) !important; color:#fff !important; border:none !important; border-radius:10px !important; font-weight:600 !important; box-shadow:0 4px 15px rgba(99,102,241,0.4) !important; }
-.stFormSubmitButton button:hover { opacity:0.9 !important; transform:translateY(-1px) !important; }
+.stFormSubmitButton button {
+    background:linear-gradient(135deg,#6366f1,#818cf8) !important;
+    color:#fff !important; border:none !important; border-radius:10px !important;
+    font-weight:700 !important; box-shadow:0 4px 16px rgba(99,102,241,0.4) !important;
+}
+.stFormSubmitButton button:hover {
+    opacity:0.9 !important; transform:translateY(-1px) !important;
+}
 </style>
 """
 
@@ -178,6 +250,13 @@ def show_auth_page() -> None:
     _init_session()
     st.markdown(AUTH_CSS, unsafe_allow_html=True)
 
+    # Fixed top-left back button
+    st.markdown("<div class='auth-back-fixed'>", unsafe_allow_html=True)
+    if st.button("← Back to home", key="auth_back"):
+        st.session_state.show_auth = False
+        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
     _, col, _ = st.columns([1, 1.6, 1])
 
     with col:
@@ -185,8 +264,9 @@ def show_auth_page() -> None:
             """
             <div class="auth-card">
               <div class="auth-logo">
-                <div class="icon">💰</div>
-                <h1>Finance Tracker</h1>
+                <div class="icon">💡</div>
+                <h1>FinSight</h1>
+                <div class="brand-sub">AI Finance Tracker</div>
                 <p>Your personal spending intelligence</p>
               </div>
               <div class="auth-divider"></div>
@@ -220,7 +300,7 @@ def show_auth_page() -> None:
 
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
-            "<p style='text-align:center;color:#475569;font-size:0.75rem'>"
-            "Secured by Supabase Auth · Data never shared</p>",
+            "<p style='text-align:center;color:#334155;font-size:0.75rem;margin-bottom:1rem'>"
+            "🔒 Secured by Supabase Auth · Data never shared</p>",
             unsafe_allow_html=True,
         )

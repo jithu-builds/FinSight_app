@@ -6,6 +6,7 @@ AI can suggest limits based on spending history.
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as _stc
 
 from backend.ai_engine import suggest_budgets
 from backend.supabase_client import fetch_budgets, fetch_transactions, upsert_budget
@@ -42,7 +43,36 @@ def _load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     return txn_df, bud_df
 
 
+_SCROLL_JS = """
+<script>
+(function() {
+    function doScroll() {
+        try {
+            var p = window.parent;
+            p.scrollTo(0, 0);
+            p.document.documentElement.scrollTop = 0;
+            p.document.body.scrollTop = 0;
+            ['section.main',
+             '[data-testid="stMainBlockContainer"]',
+             '[data-testid="stAppViewBlockContainer"]',
+             '[data-testid="stMain"]',
+             '.main'].forEach(function(s) {
+                var el = p.document.querySelector(s);
+                if (el) el.scrollTop = 0;
+            });
+        } catch(e) {}
+    }
+    doScroll();
+    setTimeout(doScroll, 150);
+    setTimeout(doScroll, 400);
+    setTimeout(doScroll, 800);
+})();
+</script>
+"""
+
+
 def render() -> None:
+    _stc.html(_SCROLL_JS, height=1)
     st.title("💰 Budgeting")
 
     txn_df, bud_df = _load_data()
@@ -57,7 +87,7 @@ def render() -> None:
         with col_btn:
             run_ai = st.button("✨ Get AI Budget Suggestions", use_container_width=True)
         with col_note:
-            st.caption("Gemini will analyse your spending history and suggest realistic monthly limits.")
+            st.caption("FinSight AI will analyse your spending history and suggest realistic monthly limits.")
 
         if run_ai:
             with st.spinner("🤖 Analysing your spending history…"):
@@ -121,7 +151,10 @@ def render() -> None:
     st.divider()
 
     # ── Budget vs Actual ──────────────────────────────────────────────────────
-    st.subheader("Budget vs Actual Spending")
+    import pandas as _pd
+    _month_label = _pd.Timestamp.now().strftime("%B %Y")
+    st.subheader(f"Budget vs Actual Spending — {_month_label}")
+    st.caption("Showing current-month spending from all sources (PDF imports + manual entries).")
 
     if bud_df.empty:
         st.info("No budgets set yet. Use the form above or click **Get AI Budget Suggestions**.")
@@ -129,7 +162,7 @@ def render() -> None:
 
     limits_map = dict(zip(bud_df["category"], bud_df["monthly_limit"]))
 
-    # Actuals — current month if possible
+    # Actuals — current calendar month only (both PDF and manual sources)
     actuals_map: dict[str, float] = {}
     if not txn_df.empty:
         expenses = txn_df[txn_df["amount"] < 0].copy()
