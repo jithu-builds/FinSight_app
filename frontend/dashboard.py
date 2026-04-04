@@ -10,6 +10,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
+from datetime import date as _date
+
 from backend.ai_engine import extract_transactions_from_markdown
 from backend.document_parser import parse_pdf_to_markdown
 from backend.supabase_client import fetch_transactions, file_already_imported, insert_transactions
@@ -195,8 +197,56 @@ def _render_charts(df: pd.DataFrame) -> None:
             st.plotly_chart(fig, use_container_width=True)
 
 
+@st.dialog("Add Transaction")
+def _manual_entry_dialog() -> None:
+    # No st.form here — it prevents the date-picker calendar from closing
+    c1, c2 = st.columns(2)
+    with c1:
+        date_str = st.text_input("Date", value=_date.today().strftime("%Y-%m-%d"), placeholder="YYYY-MM-DD")
+        txn_type = st.selectbox("Type", ["Expense", "Income"])
+    with c2:
+        desc   = st.text_input("Description", placeholder="e.g. Grocery store, Salary")
+        amount = st.number_input("Amount ($)", min_value=0.01, step=0.01, format="%.2f")
+
+    category = st.selectbox("Category", list(CATEGORY_COLORS.keys()))
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("Save Transaction", type="primary", use_container_width=True):
+        try:
+            _date.fromisoformat(date_str)
+        except ValueError:
+            st.error("Invalid date — use YYYY-MM-DD format (e.g. 2026-04-04).")
+            st.stop()
+        if not desc.strip():
+            st.error("Description is required.")
+        else:
+            signed_amount = -abs(amount) if txn_type == "Expense" else abs(amount)
+            result = insert_transactions(
+                user_id=st.session_state.user_id,
+                transactions=[{
+                    "date":        date_str,
+                    "description": desc.strip(),
+                    "amount":      signed_amount,
+                    "category":    category,
+                }],
+                source_file="manual",
+            )
+            if result["error"]:
+                st.error(f"Could not save: {result['error']}")
+            else:
+                st.session_state.pop("transactions", None)
+                st.rerun()
+
+
 def render() -> None:
-    st.title("📊 Dashboard")
+    title_col, btn_col = st.columns([5, 1])
+    with title_col:
+        st.title("📊 Dashboard")
+    with btn_col:
+        st.markdown("<div style='padding-top:1.1rem'>", unsafe_allow_html=True)
+        if st.button("➕ Add Transaction", type="primary", use_container_width=True):
+            _manual_entry_dialog()
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # Upload section
     st.subheader("Upload Bank Statement")

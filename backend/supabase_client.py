@@ -59,7 +59,12 @@ _client: Optional[Client] = None
 
 
 def get_client() -> Client:
-    """Return a lazy-initialised singleton Supabase client."""
+    """Return a lazy-initialised singleton Supabase client.
+
+    Always re-applies the current user's JWT so that Supabase RLS policies
+    work correctly.  The singleton loses its auth state when Streamlit
+    hot-reloads modules; reading it from session_state each time fixes that.
+    """
     global _client
     if _client is None:
         if not SUPABASE_URL or not SUPABASE_KEY:
@@ -67,6 +72,16 @@ def get_client() -> Client:
                 "SUPABASE_URL and SUPABASE_KEY must be set in your .env file."
             )
         _client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+    # Attach the logged-in user's JWT so RLS sees the right auth.uid()
+    try:
+        import streamlit as st
+        token = st.session_state.get("access_token", "")
+        if token:
+            _client.postgrest.auth(token)
+    except Exception:
+        pass
+
     return _client
 
 
