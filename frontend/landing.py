@@ -3,6 +3,7 @@ FinSight landing page — shown to unauthenticated users before the auth form.
 """
 
 import streamlit as st
+from components.auth import show_auth_dialog
 
 LANDING_CSS = """
 <style>
@@ -187,16 +188,22 @@ LANDING_CSS = """
 
 
 def render() -> None:
+    from components.auth import show_auth_dialog  # local import avoids circular dependency
+
     st.markdown(LANDING_CSS, unsafe_allow_html=True)
 
+    # Open auth dialog if triggered
+    if st.session_state.get("show_auth"):
+        show_auth_dialog()
+
     # ── Navbar ─────────────────────────────────────────────────────────────────
-    # Thin top bar: just Sign In button pinned to the right
     _, nav_right = st.columns([5, 1])
     with nav_right:
         st.markdown("<div style='padding:0.6rem 0'>", unsafe_allow_html=True)
         st.markdown("<div class='lp-nav-btn'>", unsafe_allow_html=True)
         if st.button("Sign In →", key="nav_signin", use_container_width=True):
-            st.session_state.show_auth = True
+            st.session_state.show_auth  = True
+            st.session_state.auth_mode  = "login"
             st.rerun()
         st.markdown("</div></div>", unsafe_allow_html=True)
 
@@ -244,7 +251,8 @@ def render() -> None:
     with cta_col:
         st.markdown("<div class='lp-btn-wrap'>", unsafe_allow_html=True)
         if st.button("🚀  Get Started — Free", key="hero_cta", use_container_width=True):
-            st.session_state.show_auth = True
+            st.session_state.show_auth  = True
+            st.session_state.auth_mode  = "signup"
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 

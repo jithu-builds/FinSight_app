@@ -1,5 +1,5 @@
 """
-Authentication UI — login/signup + cookie-based session persistence.
+Authentication UI — dialog-based login/signup + cookie-based session persistence.
 
 Session survives browser refresh by storing user_id, user_email, and
 access_token in browser cookies via extra-streamlit-components.
@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 import streamlit as st
 from components.session_store import get_cm as _cm
 
-from backend.supabase_client import sign_in, sign_up, sign_out
+from backend.supabase_client import sign_in, sign_up, sign_out, reset_password
 
 
 COOKIE_EXPIRY = datetime.now() + timedelta(days=7)
@@ -33,10 +33,6 @@ def save_session_to_cookies(user_id: str, email: str, token: str) -> None:
 
 
 def restore_session_from_cookies() -> bool:
-    """
-    Try to restore session from cookies.
-    Returns True if session was successfully restored.
-    """
     if st.session_state.get("logged_in"):
         return True
 
@@ -138,169 +134,173 @@ def _handle_sign_up(email: str, password: str, confirm: str) -> None:
         st.rerun()
 
 
-# ─── Auth CSS ─────────────────────────────────────────────────────────────────
+def _handle_reset(email: str) -> None:
+    if not email:
+        st.error("Please enter your email address.")
+        return
+    with st.spinner("Sending reset link…"):
+        result = reset_password(email)
+    if result["error"]:
+        st.error(f"Could not send reset email — {result['error']}")
+        return
+    st.success("✅ Password reset link sent! Check your inbox.")
 
-AUTH_CSS = """
+
+# ─── Dialog CSS (injected inside the dialog) ─────────────────────────────────
+
+_DIALOG_CSS = """
 <style>
-.stApp {
-    background: linear-gradient(135deg, #060b18 0%, #0f0c29 40%, #080d1a 100%);
-    min-height: 100vh;
+/* Style the Streamlit dialog backdrop and card */
+[data-testid="stDialog"] > div {
+    background: rgba(0,0,0,0.65) !important;
+    backdrop-filter: blur(12px) !important;
 }
-#MainMenu, footer { visibility: hidden; }
-header[data-testid="stHeader"] { display: none !important; }
-[data-testid="stSidebar"],
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="collapsedControl"] { display: none !important; }
-.block-container { padding-top: 0.5rem !important; max-width: 100% !important; }
+[data-testid="stDialog"] [data-testid="stModalDialog"] {
+    background: #0e1420 !important;
+    border: 1px solid rgba(255,255,255,0.07) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.7) !important;
+}
+/* Top shimmer line on dialog card */
+[data-testid="stDialog"] [data-testid="stModalDialog"]::before {
+    content: '';
+    position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(99,102,241,0.5), transparent);
+}
+/* Dialog title hidden — we render our own header */
+[data-testid="stDialog"] h2 { display: none !important; }
 
-.auth-card {
-    background: rgba(255,255,255,0.035); backdrop-filter: blur(24px);
-    border: 1px solid rgba(255,255,255,0.09); border-radius: 24px;
-    padding: 2.5rem 2.5rem 2rem; box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+.auth-dialog-logo {
+    text-align: center; padding: 0.5rem 0 1rem;
 }
-.auth-logo { text-align:center; margin-bottom:0.25rem; }
-.auth-logo .icon { font-size:3rem; line-height:1; }
-.auth-logo h1 {
-    font-size:1.75rem !important; font-weight:800 !important; color:#f1f5f9 !important;
-    margin:0.35rem 0 0.2rem !important; letter-spacing:-0.5px !important;
-    -webkit-text-fill-color: #f1f5f9 !important;
+.auth-dialog-logo .icon {
+    font-size: 2.2rem; display: block; margin-bottom: 0.4rem;
+    filter: drop-shadow(0 0 18px rgba(99,102,241,0.65));
 }
-.auth-logo .brand-sub {
-    font-size:0.72rem; font-weight:700; color:#334155;
-    text-transform:uppercase; letter-spacing:0.12em; margin-top:2px;
+.auth-dialog-logo h3 {
+    font-size: 1.5rem !important; font-weight: 800 !important;
+    color: #e2e8f0 !important; letter-spacing: -0.5px !important;
+    margin: 0 0 0.1rem !important;
 }
-.auth-logo p { color:#64748b; font-size:0.875rem; margin:0.25rem 0 0; }
+.auth-dialog-logo .sub {
+    font-size: 0.65rem; color: #475569; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.16em;
+}
 .auth-divider {
-    height:1px;
-    background:linear-gradient(to right,transparent,rgba(255,255,255,0.1),transparent);
-    margin:1.5rem 0;
+    height: 1px; margin: 0.75rem 0 1rem;
+    background: linear-gradient(to right, transparent, rgba(255,255,255,0.06), transparent);
 }
-/* Back-to-home — fixed top-left */
-.auth-back-fixed {
-    position: fixed;
-    top: 1rem;
-    left: 1.25rem;
-    z-index: 9999;
+.auth-reset-link {
+    text-align: right; margin-top: -0.25rem; margin-bottom: 0.75rem;
 }
-.auth-back-fixed .stButton > button {
-    background: rgba(255,255,255,0.05) !important;
-    color: #94a3b8 !important;
-    box-shadow: none !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    border-radius: 8px !important;
-    font-size: 0.82rem !important;
-    font-weight: 500 !important;
-    padding: 0.4rem 1rem !important;
-    transition: color 0.15s, border-color 0.15s, background 0.15s !important;
+.auth-reset-link a {
+    font-size: 0.78rem; color: #5d6a82; text-decoration: none;
+    cursor: pointer; transition: color 0.15s;
 }
-.auth-back-fixed .stButton > button:hover {
-    color: #f1f5f9 !important;
-    background: rgba(255,255,255,0.09) !important;
-    border-color: rgba(255,255,255,0.2) !important;
-    transform: none !important;
-    box-shadow: none !important;
-}
-
-.stTabs [data-baseweb="tab-list"] {
-    background:rgba(255,255,255,0.04) !important; border-radius:12px !important;
-    padding:4px !important; gap:4px !important;
-    border:1px solid rgba(255,255,255,0.07) !important;
-}
-.stTabs [data-baseweb="tab"] {
-    border-radius:9px !important; color:#64748b !important;
-    font-weight:600 !important; font-size:0.9rem !important;
-    padding:0.5rem 1.25rem !important;
-}
-.stTabs [aria-selected="true"] {
-    background:linear-gradient(135deg,#6366f1,#818cf8) !important;
-    color:#fff !important; box-shadow:0 4px 14px rgba(99,102,241,0.4) !important;
-}
-.stTabs [data-baseweb="tab-highlight"],
-.stTabs [data-baseweb="tab-border"] { display:none !important; }
-
-.stTextInput label {
-    color:#475569 !important; font-size:0.75rem !important; font-weight:700 !important;
-    text-transform:uppercase !important; letter-spacing:0.09em !important;
-}
-.stTextInput input {
-    background:rgba(255,255,255,0.04) !important;
-    border:1px solid rgba(255,255,255,0.1) !important;
-    border-radius:10px !important; color:#f1f5f9 !important;
-}
-.stTextInput input:focus {
-    border-color:#6366f1 !important;
-    box-shadow:0 0 0 3px rgba(99,102,241,0.2) !important;
-}
-
-.stFormSubmitButton button {
-    background:linear-gradient(135deg,#6366f1,#818cf8) !important;
-    color:#fff !important; border:none !important; border-radius:10px !important;
-    font-weight:700 !important; box-shadow:0 4px 16px rgba(99,102,241,0.4) !important;
-}
-.stFormSubmitButton button:hover {
-    opacity:0.9 !important; transform:translateY(-1px) !important;
+.auth-reset-link a:hover { color: #c7d2fe; }
+.auth-footer {
+    text-align: center; margin-top: 0.75rem;
+    font-size: 0.72rem; color: #334155;
 }
 </style>
 """
 
 
-# ─── Auth page ────────────────────────────────────────────────────────────────
+# ─── Auth dialog ──────────────────────────────────────────────────────────────
 
-def show_auth_page() -> None:
+@st.dialog("FinSight", width="small")
+def show_auth_dialog() -> None:
     _init_session()
-    st.markdown(AUTH_CSS, unsafe_allow_html=True)
+    st.markdown(_DIALOG_CSS, unsafe_allow_html=True)
 
-    # Fixed top-left back button
-    st.markdown("<div class='auth-back-fixed'>", unsafe_allow_html=True)
-    if st.button("← Back to home", key="auth_back"):
-        st.session_state.show_auth = False
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    # Brand header
+    st.markdown(
+        """
+        <div class="auth-dialog-logo">
+            <span class="icon">💡</span>
+            <h3>FinSight</h3>
+            <div class="sub">AI Finance Tracker</div>
+        </div>
+        <div class="auth-divider"></div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    _, col, _ = st.columns([1, 1.6, 1])
+    # ── Reset password mode ────────────────────────────────────────────────────
+    if st.session_state.get("auth_mode") == "reset":
+        st.markdown(
+            "<p style='font-size:0.85rem;color:#5d6a82;font-family:Inter,sans-serif;"
+            "margin-bottom:1rem'>Enter your email and we'll send you a reset link.</p>",
+            unsafe_allow_html=True,
+        )
+        with st.form("reset_form"):
+            email     = st.text_input("Email", placeholder="you@example.com", key="reset_email")
+            submitted = st.form_submit_button("Send Reset Link →", use_container_width=True)
+        if submitted:
+            _handle_reset(email)
 
-    with col:
+        st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+        if st.button("← Back to Log In", key="back_to_login", use_container_width=False):
+            st.session_state.auth_mode = "login"
+            st.rerun()
+
+        st.markdown(
+            "<div class='auth-footer'>🔒 Secured by Supabase Auth · Data never shared</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    # ── Normal mode: Log In / Sign Up tabs ────────────────────────────────────
+    tab_login, tab_signup = st.tabs(["  Log In  ", "  Sign Up  "])
+
+    with tab_login:
+        st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+        with st.form("login_form"):
+            email    = st.text_input("Email",    placeholder="you@example.com", key="li_email")
+            password = st.text_input("Password", placeholder="••••••••", type="password", key="li_pass")
+            st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("Log In →", use_container_width=True)
+        if submitted:
+            _handle_sign_in(email, password)
+
+        # Forgot password — styled as a subtle text link
         st.markdown(
             """
-            <div class="auth-card">
-              <div class="auth-logo">
-                <div class="icon">💡</div>
-                <h1>FinSight</h1>
-                <div class="brand-sub">AI Finance Tracker</div>
-                <p>Your personal spending intelligence</p>
-              </div>
-              <div class="auth-divider"></div>
-            </div>
+            <style>
+            [data-testid="stDialog"] button[kind="secondary"]:has(+ *),
+            div[data-testid="stDialog"] .forgot-btn button {
+                background: none !important; border: none !important;
+                box-shadow: none !important; color: #5d6a82 !important;
+                font-size: 0.78rem !important; font-weight: 400 !important;
+                padding: 0 !important; text-decoration: underline !important;
+                text-underline-offset: 3px !important;
+            }
+            div[data-testid="stDialog"] .forgot-btn button:hover {
+                color: #c4b5fd !important; transform: none !important;
+                box-shadow: none !important;
+            }
+            </style>
+            <div class="forgot-btn">
             """,
             unsafe_allow_html=True,
         )
+        if st.button("Forgot password?", key="forgot_pw"):
+            st.session_state.auth_mode = "reset"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-        tab_login, tab_signup = st.tabs(["  Log In  ", "  Sign Up  "])
+    with tab_signup:
+        st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+        with st.form("signup_form"):
+            email   = st.text_input("Email",            placeholder="you@example.com",   key="su_email")
+            pw      = st.text_input("Password",         placeholder="Min. 6 characters", type="password", key="su_pass")
+            confirm = st.text_input("Confirm Password", placeholder="Repeat password",   type="password", key="su_confirm")
+            st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("Create Account →", use_container_width=True)
+        if submitted:
+            _handle_sign_up(email, pw, confirm)
 
-        with tab_login:
-            st.markdown("<br>", unsafe_allow_html=True)
-            with st.form("login_form"):
-                email    = st.text_input("Email",    placeholder="you@example.com")
-                password = st.text_input("Password", placeholder="••••••••", type="password")
-                st.markdown("<br>", unsafe_allow_html=True)
-                submitted = st.form_submit_button("Log In →", use_container_width=True)
-            if submitted:
-                _handle_sign_in(email, password)
-
-        with tab_signup:
-            st.markdown("<br>", unsafe_allow_html=True)
-            with st.form("signup_form"):
-                email   = st.text_input("Email",            placeholder="you@example.com", key="su_email")
-                pw      = st.text_input("Password",         placeholder="Min. 6 characters", type="password", key="su_pass")
-                confirm = st.text_input("Confirm Password", placeholder="Repeat password",   type="password", key="su_confirm")
-                st.markdown("<br>", unsafe_allow_html=True)
-                submitted = st.form_submit_button("Create Account →", use_container_width=True)
-            if submitted:
-                _handle_sign_up(email, pw, confirm)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(
-            "<p style='text-align:center;color:#334155;font-size:0.75rem;margin-bottom:1rem'>"
-            "🔒 Secured by Supabase Auth · Data never shared</p>",
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        "<div class='auth-footer'>🔒 Secured by Supabase Auth · Data never shared</div>",
+        unsafe_allow_html=True,
+    )

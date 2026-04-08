@@ -112,6 +112,32 @@ def sign_out() -> None:
         pass
 
 
+def reset_password(email: str) -> dict:
+    try:
+        get_client().auth.reset_password_for_email(email)
+        return {"error": None}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def exchange_code_for_session(code: str) -> dict:
+    """Exchange a PKCE auth code (from the reset link) for a session."""
+    try:
+        response = get_client().auth.exchange_code_for_session({"auth_code": code})
+        return {"session": response.session, "user": response.user, "error": None}
+    except Exception as exc:
+        return {"session": None, "user": None, "error": str(exc)}
+
+
+def update_user_password(new_password: str) -> dict:
+    """Update the current user's password (must be called with an active session)."""
+    try:
+        get_client().auth.update_user({"password": new_password})
+        return {"error": None}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 # ─── Transactions ─────────────────────────────────────────────────────────────
 
 def insert_transactions(user_id: str, transactions: list[dict], source_file: str = "") -> dict:

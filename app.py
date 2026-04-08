@@ -246,8 +246,9 @@ _loader.markdown(
     unsafe_allow_html=True,
 )
 
-from components.auth import logout, restore_session_from_cookies, show_auth_page  # noqa: E402
+from components.auth import logout, restore_session_from_cookies  # noqa: E402
 from frontend import budgeting, chat_ai, dashboard, landing                        # noqa: E402
+from backend.supabase_client import exchange_code_for_session, update_user_password  # noqa: E402
 
 _loader.empty()
 
@@ -264,6 +265,84 @@ def _init_session() -> None:
     }.items():
         if key not in st.session_state:
             st.session_state[key] = val
+
+
+# ─── Password reset callback ──────────────────────────────────────────────────
+
+@st.dialog("Set New Password", width="small")
+def _password_reset_dialog(code: str) -> None:
+    st.markdown(
+        """
+        <style>
+        [data-testid="stDialog"] h2 { display: none !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <div style="text-align:center;padding:0.5rem 0 1.25rem">
+            <span style="font-size:2rem;filter:drop-shadow(0 0 16px rgba(99,102,241,0.6))">🔑</span>
+            <div style="font-size:1.3rem;font-weight:800;
+                        color:#e2e8f0;margin:0.4rem 0 0.15rem;letter-spacing:-0.3px">
+                Set New Password
+            </div>
+            <div style="font-size:0.8rem;color:#475569">
+                Choose a strong password for your FinSight account
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Exchange the recovery code for a live session first
+    if not st.session_state.get("_recovery_session_set"):
+        with st.spinner("Verifying reset link…"):
+            result = exchange_code_for_session(code)
+        if result["error"]:
+            st.error(f"Reset link is invalid or expired — {result['error']}")
+            if st.button("Request a new link"):
+                st.query_params.clear()
+                st.rerun()
+            return
+        # Persist the recovery session so we can call update_user
+        session = result["session"]
+        if session:
+            st.session_state.access_token = session.access_token
+        st.session_state._recovery_session_set = True
+
+    with st.form("new_password_form"):
+        pw      = st.text_input("New Password",     placeholder="Min. 6 characters", type="password")
+        confirm = st.text_input("Confirm Password", placeholder="Repeat password",   type="password")
+        st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
+        submitted = st.form_submit_button("Update Password →", use_container_width=True)
+
+    if submitted:
+        if not pw or not confirm:
+            st.error("Both fields are required.")
+        elif pw != confirm:
+            st.error("Passwords do not match.")
+        elif len(pw) < 6:
+            st.error("Password must be at least 6 characters.")
+        else:
+            with st.spinner("Updating password…"):
+                res = update_user_password(pw)
+            if res["error"]:
+                st.error(f"Could not update password — {res['error']}")
+            else:
+                st.success("✅ Password updated! You can now log in.")
+                st.session_state._recovery_session_set = False
+                st.query_params.clear()
+
+
+def _handle_recovery_params() -> bool:
+    """Check URL for Supabase recovery code. Returns True if recovery flow is active."""
+    params = st.query_params
+    code = params.get("code")
+    if code:
+        _password_reset_dialog(code)
+        return True
+    return False
 
 
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -320,18 +399,21 @@ def _render_sidebar() -> str:
 def main() -> None:
     _init_session()
 
+    # Handle Supabase password-reset callback (?code=... in URL)
+    if _handle_recovery_params():
+        landing.render()
+        return
+
     if not st.session_state.logged_in:
         restore_session_from_cookies()
 
     if not st.session_state.logged_in:
-        if st.session_state.get("show_auth"):
-            show_auth_page()
-        else:
-            landing.render()
+        landing.render()  # dialog is triggered from within landing
         return
 
-    # Reset show_auth so landing page shows correctly on next logout
+    # Clear auth flags on successful login
     st.session_state.show_auth = False
+    st.session_state.auth_mode = None
 
     page = _render_sidebar()
     PAGES[page].render()
