@@ -22,34 +22,48 @@ set_cm(stx.CookieManager(key="finsight_cookies"))
 # ─── Global CSS ───────────────────────────────────────────────────────────────
 GLOBAL_CSS = """
 <style>
+/*
+ * FinSight design tokens
+ * -----------------------------------------
+ * bg-deep:      #1a1512  page background
+ * bg-card:      #221c18  card / surface
+ * bg-elevated:  #2c2318  raised / hover
+ * accent-terra: #BD866A  primary (terracotta)
+ * accent-gold:  #C9A860  numbers / highlights
+ * accent-sage:  #7B9E87  positive / income
+ * accent-sky:   #7AA0C4  contrast / links
+ * accent-rose:  #C97B7B  over-budget / danger
+ * cream-bright: #F4ECDC  headings
+ * cream-mid:    #D4C4A8  body text
+ * cream-muted:  #A89880  secondary
+ * cream-dim:    #6B5C50  labels / disabled
+ */
+
 /* ── Base ── */
-.stApp {
-    background: #080d1a;
-}
+.stApp { background: #1a1512; }
 #MainMenu, footer { visibility: hidden; }
 header[data-testid="stHeader"] { background: transparent !important; }
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0c1120 0%, #080d1a 100%) !important;
-    border-right: 1px solid rgba(255,255,255,0.06) !important;
+    background: linear-gradient(180deg, #1e1813 0%, #1a1512 100%) !important;
+    border-right: 1px solid rgba(244,236,220,0.07) !important;
 }
 [data-testid="stSidebar"] .block-container { padding-top: 1.5rem; }
 [data-testid="stSidebar"] .stRadio label {
     display: flex; align-items: center; justify-content: center;
     padding: 0.75rem 1.1rem; border-radius: 12px;
-    color: #64748b !important; font-weight: 600; font-size: 1.05rem;
+    color: #6B5C50 !important; font-weight: 600; font-size: 1.05rem;
     cursor: pointer; transition: background 0.15s, color 0.15s;
-    margin-bottom: 4px; border-left: none; text-align: center;
-    gap: 0;
+    margin-bottom: 4px; border-left: none; text-align: center; gap: 0;
 }
 [data-testid="stSidebar"] .stRadio label:hover {
-    background: rgba(99,102,241,0.1); color: #c7d2fe !important;
+    background: rgba(201,168,96,0.1); color: #C9A860 !important;
 }
 [data-testid="stSidebar"] .stRadio label:has(input:checked) {
-    background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(20,184,166,0.08)) !important;
-    color: #a5b4fc !important;
-    box-shadow: inset 0 0 0 1px rgba(99,102,241,0.35) !important;
+    background: rgba(201,168,96,0.12) !important;
+    color: #C9A860 !important;
+    box-shadow: inset 0 0 0 1px rgba(201,168,96,0.3) !important;
 }
 [data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] {
     width: 100%; text-align: center;
@@ -57,13 +71,36 @@ header[data-testid="stHeader"] { background: transparent !important; }
 [data-testid="stSidebar"] .stRadio [data-testid="stMarkdownContainer"] p {
     margin: 0; line-height: 1.3; text-align: center;
 }
-/* Hide radio dot/circle indicators completely */
 [data-testid="stSidebar"] .stRadio input[type="radio"] { display: none !important; }
 [data-testid="stSidebar"] .stRadio div[data-baseweb="radio"] { display: none !important; }
 [data-testid="stSidebar"] .stRadio label > div:first-child { display: none !important; }
-/* Hide the "nav" widget label that appears above the navigation items */
 [data-testid="stSidebar"] [data-testid="stWidgetLabel"],
 [data-testid="stSidebar"] .stRadio > label { display: none !important; }
+
+/* ── Lock sidebar width — hide drag handle + fix dimensions ── */
+[data-testid="stSidebarResizeHandle"],
+[data-testid="stSidebarResizeHandle"] > div,
+[data-testid="stSidebarResizeHandle"] * {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+    cursor: default !important;
+}
+/* Force fixed width so browser never enters resize zone */
+[data-testid="stSidebar"] {
+    min-width: 280px !important;
+    max-width: 280px !important;
+    width: 280px !important;
+    cursor: default !important;
+}
+/* Neutralise any col-resize cursor on sidebar inner divs */
+[data-testid="stSidebar"] > div,
+[data-testid="stSidebarContent"],
+[data-testid="stSidebarUserContent"] {
+    cursor: default !important;
+}
 
 /* ── Content area ── */
 .block-container { padding: 1.75rem 2.5rem 2rem !important; max-width: 1400px; }
@@ -71,145 +108,218 @@ header[data-testid="stHeader"] { background: transparent !important; }
 /* ── Typography ── */
 h1 {
     font-size: 1.75rem !important; font-weight: 800 !important;
-    color: #f1f5f9 !important; letter-spacing: -0.5px !important;
+    color: #F4ECDC !important; letter-spacing: -0.5px !important;
     margin-bottom: 0.25rem !important;
 }
-h2 { font-size: 1.2rem !important; font-weight: 700 !important; color: #e2e8f0 !important; }
-h3 { font-size: 1rem !important; font-weight: 600 !important; color: #cbd5e1 !important; }
+h2 { font-size: 1.2rem !important; font-weight: 700 !important; color: #D4C4A8 !important; }
+h3 { font-size: 1rem !important; font-weight: 600 !important; color: #A89880 !important; }
 
-/* ── Metric cards ── */
+/* ── Metric cards — gold value, cream label, subtle top accent ── */
 [data-testid="stMetric"] {
-    background: #111827; border: 1px solid rgba(255,255,255,0.07);
+    background: #221c18;
+    border: 1px solid rgba(244,236,220,0.08);
+    border-top: 2px solid rgba(201,168,96,0.4);
     border-radius: 16px; padding: 1.2rem 1.4rem !important;
-    transition: border-color 0.2s, transform 0.2s;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
 }
-[data-testid="stMetric"]:hover { border-color: rgba(99,102,241,0.3); transform: translateY(-1px); }
+[data-testid="stMetric"]:hover {
+    border-color: rgba(201,168,96,0.5);
+    border-top-color: #C9A860;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(201,168,96,0.1);
+}
 [data-testid="stMetricLabel"] {
-    color: #475569 !important; font-size: 0.75rem !important;
+    color: #6B5C50 !important; font-size: 0.75rem !important;
     font-weight: 700 !important; text-transform: uppercase !important;
     letter-spacing: 0.1em !important;
 }
 [data-testid="stMetricValue"] {
-    color: #f1f5f9 !important; font-size: 1.65rem !important;
+    color: #C9A860 !important; font-size: 1.65rem !important;
     font-weight: 800 !important; letter-spacing: -0.5px !important;
 }
+[data-testid="stMetricDelta"] { color: #7B9E87 !important; font-weight: 600 !important; }
 [data-testid="stMetricDelta"] svg { display: none; }
 
 /* ── Buttons ── */
 .stButton button, .stFormSubmitButton button {
-    background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%) !important;
-    color: #fff !important; border: none !important; border-radius: 10px !important;
+    background: linear-gradient(135deg, #BD866A 0%, #89685F 100%) !important;
+    color: #F4ECDC !important; border: none !important; border-radius: 10px !important;
     font-weight: 700 !important; font-size: 0.875rem !important;
     padding: 0.55rem 1.3rem !important;
-    box-shadow: 0 4px 14px rgba(99,102,241,0.35) !important;
+    box-shadow: 0 4px 14px rgba(189,134,106,0.3) !important;
     transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s !important;
 }
 .stButton button:hover, .stFormSubmitButton button:hover {
-    opacity: 0.88 !important; transform: translateY(-1px) !important;
-    box-shadow: 0 6px 20px rgba(99,102,241,0.5) !important;
+    opacity: 0.9 !important; transform: translateY(-1px) !important;
+    box-shadow: 0 6px 20px rgba(201,168,96,0.35) !important;
+}
+/* Secondary / outline buttons via Streamlit "secondary" kind */
+.stButton button[kind="secondary"] {
+    background: rgba(244,236,220,0.05) !important;
+    color: #D4C4A8 !important;
+    border: 1px solid rgba(244,236,220,0.12) !important;
+    box-shadow: none !important;
+}
+.stButton button[kind="secondary"]:hover {
+    background: rgba(201,168,96,0.1) !important;
+    color: #C9A860 !important;
+    border-color: rgba(201,168,96,0.3) !important;
+    box-shadow: none !important;
 }
 [data-testid="stSidebar"] .stButton button {
-    background: rgba(239,68,68,0.1) !important; color: #f87171 !important;
-    box-shadow: none !important; border: 1px solid rgba(239,68,68,0.2) !important;
+    background: rgba(201,96,96,0.1) !important; color: #C97B7B !important;
+    box-shadow: none !important; border: 1px solid rgba(201,96,96,0.2) !important;
 }
 [data-testid="stSidebar"] .stButton button:hover {
-    background: rgba(239,68,68,0.2) !important;
+    background: rgba(201,96,96,0.2) !important;
     transform: none !important; box-shadow: none !important;
 }
 
 /* ── Inputs ── */
-.stTextInput label, .stNumberInput label, .stSelectbox label {
-    color: #475569 !important; font-size: 0.75rem !important;
+.stTextInput label, .stNumberInput label, .stSelectbox label, .stFileUploader label {
+    color: #6B5C50 !important; font-size: 0.75rem !important;
     font-weight: 700 !important; text-transform: uppercase !important;
     letter-spacing: 0.09em !important;
 }
 .stTextInput input, .stNumberInput input {
-    background: #111827 !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    border-radius: 10px !important; color: #f1f5f9 !important;
+    background: #2c2318 !important;
+    border: 1px solid rgba(244,236,220,0.09) !important;
+    border-radius: 10px !important; color: #F4ECDC !important;
 }
 .stTextInput input:focus, .stNumberInput input:focus {
-    border-color: #6366f1 !important;
-    box-shadow: 0 0 0 3px rgba(99,102,241,0.18) !important;
+    border-color: #7AA0C4 !important;
+    box-shadow: 0 0 0 3px rgba(122,160,196,0.18) !important;
 }
 div[data-baseweb="select"] > div {
-    background: #111827 !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    border-radius: 10px !important; color: #f1f5f9 !important;
+    background: #2c2318 !important;
+    border: 1px solid rgba(244,236,220,0.09) !important;
+    border-radius: 10px !important; color: #F4ECDC !important;
 }
 
 /* ── File uploader ── */
 [data-testid="stFileUploader"] {
-    background: #111827 !important;
-    border: 2px dashed rgba(99,102,241,0.3) !important;
+    background: #221c18 !important;
+    border: 2px dashed rgba(122,160,196,0.3) !important;
     border-radius: 16px !important; padding: 1rem !important;
     transition: border-color 0.2s !important;
 }
-[data-testid="stFileUploader"]:hover { border-color: rgba(99,102,241,0.6) !important; }
+[data-testid="stFileUploader"]:hover { border-color: rgba(122,160,196,0.55) !important; }
 
 /* ── DataFrames ── */
 [data-testid="stDataFrame"] {
-    border: 1px solid rgba(255,255,255,0.07) !important;
+    border: 1px solid rgba(244,236,220,0.07) !important;
     border-radius: 14px !important; overflow: hidden !important;
 }
 
-/* ── Tabs ── */
+/* ── Tabs — sky-blue active ── */
 .stTabs [data-baseweb="tab-list"] {
-    background: #111827 !important; border-radius: 14px !important;
+    background: #221c18 !important; border-radius: 14px !important;
     padding: 5px !important; gap: 4px !important;
-    border: 1px solid rgba(255,255,255,0.07) !important;
+    border: 1px solid rgba(244,236,220,0.07) !important;
 }
 .stTabs [data-baseweb="tab"] {
-    border-radius: 10px !important; color: #475569 !important;
+    border-radius: 10px !important; color: #6B5C50 !important;
     font-weight: 600 !important; padding: 0.45rem 1.2rem !important;
     font-size: 0.875rem !important;
 }
 .stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%) !important;
-    color: #fff !important; box-shadow: 0 4px 14px rgba(99,102,241,0.4) !important;
+    background: linear-gradient(135deg, #7AA0C4 0%, #5A80A4 100%) !important;
+    color: #F4ECDC !important; box-shadow: 0 4px 14px rgba(122,160,196,0.35) !important;
 }
 .stTabs [data-baseweb="tab-highlight"],
 .stTabs [data-baseweb="tab-border"] { display: none !important; }
 
 /* ── Expanders ── */
 [data-testid="stExpander"] {
-    background: #111827 !important;
-    border: 1px solid rgba(255,255,255,0.07) !important;
+    background: #221c18 !important;
+    border: 1px solid rgba(244,236,220,0.07) !important;
     border-radius: 14px !important;
+}
+[data-testid="stExpander"] summary {
+    color: #D4C4A8 !important;
 }
 
 /* ── Dividers ── */
-hr { border-color: rgba(255,255,255,0.06) !important; margin: 1.5rem 0 !important; }
+hr { border-color: rgba(244,236,220,0.07) !important; margin: 1.5rem 0 !important; }
 
-/* ── Chat ── */
+/* ── Chat messages — user warm cream, assistant dark ── */
+[data-testid="stChatMessage"][data-testid*="user"],
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {
+    background: rgba(244,236,220,0.05) !important;
+    border: 1px solid rgba(244,236,220,0.1) !important;
+    border-left: 3px solid #C9A860 !important;
+    border-radius: 16px !important; padding: 1rem 1.2rem !important;
+    margin-bottom: 0.6rem !important;
+}
 [data-testid="stChatMessage"] {
-    background: #111827 !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
+    background: #221c18 !important;
+    border: 1px solid rgba(244,236,220,0.07) !important;
+    border-left: 3px solid #7AA0C4 !important;
     border-radius: 16px !important; padding: 1rem 1.2rem !important;
     margin-bottom: 0.6rem !important;
 }
 [data-testid="stChatInputTextArea"] {
-    background: #111827 !important;
-    border: 1px solid rgba(99,102,241,0.3) !important;
-    border-radius: 12px !important; color: #f1f5f9 !important;
+    background: #2c2318 !important;
+    border: 1px solid rgba(122,160,196,0.3) !important;
+    border-radius: 12px !important; color: #F4ECDC !important;
 }
 
-/* ── Alerts ── */
-.stAlert { border-radius: 12px !important; border: none !important; font-size: 0.875rem !important; }
+/* ── Alerts — colour-coded ── */
+.stAlert { border-radius: 12px !important; font-size: 0.875rem !important; }
+.stAlert[data-baseweb="notification"][kind="positive"],
+div[data-testid="stAlert"][data-baseweb="notification"] {
+    border-left: 3px solid #7B9E87 !important;
+}
+
+/* ── Caption / small text ── */
+.stCaption, [data-testid="stCaptionContainer"] p {
+    color: #A89880 !important;
+}
 
 /* ── Spinner ── */
 .stSpinner [data-testid="stSpinner"] div,
-div[data-testid="stSpinner"] > div > div { border-top-color: #818cf8 !important; }
+div[data-testid="stSpinner"] > div > div { border-top-color: #C9A860 !important; }
 
 /* ── Progress bar ── */
 [data-testid="stProgressBar"] > div > div {
-    background: linear-gradient(90deg, #6366f1, #14b8a6) !important;
+    background: linear-gradient(90deg, #7B9E87, #C9A860) !important;
     border-radius: 99px !important;
 }
+
+/* ── Info / success / warning native Streamlit boxes ── */
+div[data-testid="stInfo"]    { border-left: 3px solid #7AA0C4 !important; }
+div[data-testid="stSuccess"] { border-left: 3px solid #7B9E87 !important; }
+div[data-testid="stWarning"] { border-left: 3px solid #C9A860 !important; }
+div[data-testid="stError"]   { border-left: 3px solid #C97B7B !important; }
 </style>
 """
 
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
+
+# ── Kill sidebar resize handle via JS (CSS alone can't remove drag listeners) ──
+st.markdown(
+    """
+    <script>
+    (function() {
+        function killHandle() {
+            var h = document.querySelector('[data-testid="stSidebarResizeHandle"]');
+            if (h) {
+                h.remove();
+                return true;
+            }
+            return false;
+        }
+        if (!killHandle()) {
+            var obs = new MutationObserver(function(_, o) {
+                if (killHandle()) o.disconnect();
+            });
+            obs.observe(document.documentElement, { childList: true, subtree: true });
+        }
+    })();
+    </script>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ── Full-screen loading overlay ────────────────────────────────────────────────
 _loader = st.empty()
@@ -217,20 +327,20 @@ _loader.markdown(
     """
     <style>
     #fs-loader {
-        position: fixed; inset: 0; background: #080d1a;
+        position: fixed; inset: 0; background: #1a1512;
         display: flex; flex-direction: column;
         align-items: center; justify-content: center;
         gap: 0.75rem; z-index: 99999;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
     .fsl-icon  { font-size: 3.5rem; animation: fsl-pulse 1.6s ease-in-out infinite; }
-    .fsl-title { color: #f1f5f9; font-size: 1.65rem; font-weight: 800;
+    .fsl-title { color: #F4ECDC; font-size: 1.65rem; font-weight: 800;
                  letter-spacing: -0.5px; margin: 0.25rem 0 0; }
-    .fsl-sub   { color: #334155; font-size: 0.85rem; margin: 0 0 1.25rem; }
+    .fsl-sub   { color: #6B5C50; font-size: 0.85rem; margin: 0 0 1.25rem; }
     .fsl-ring  {
         width: 40px; height: 40px;
-        border: 3px solid rgba(99,102,241,0.18);
-        border-top-color: #818cf8; border-radius: 50%;
+        border: 3px solid rgba(201,168,96,0.2);
+        border-top-color: #C9A860; border-radius: 50%;
         animation: fsl-spin 0.85s linear infinite;
     }
     @keyframes fsl-spin  { to { transform: rotate(360deg); } }
@@ -282,12 +392,12 @@ def _password_reset_dialog(code: str) -> None:
     st.markdown(
         """
         <div style="text-align:center;padding:0.5rem 0 1.25rem">
-            <span style="font-size:2rem;filter:drop-shadow(0 0 16px rgba(99,102,241,0.6))">🔑</span>
+            <span style="font-size:2rem;filter:drop-shadow(0 0 16px rgba(122,160,196,0.6))">🔑</span>
             <div style="font-size:1.3rem;font-weight:800;
-                        color:#e2e8f0;margin:0.4rem 0 0.15rem;letter-spacing:-0.3px">
+                        color:#F4ECDC;margin:0.4rem 0 0.15rem;letter-spacing:-0.3px">
                 Set New Password
             </div>
-            <div style="font-size:0.8rem;color:#475569">
+            <div style="font-size:0.8rem;color:#A89880">
                 Choose a strong password for your FinSight account
             </div>
         </div>
@@ -361,17 +471,17 @@ def _render_sidebar() -> str:
             """
             <div style="padding:0.5rem 0.5rem 1rem;text-align:center">
                 <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:4px">
-                    <span style="font-size:2rem">💡</span>
+                    <span style="font-size:2rem;filter:drop-shadow(0 0 18px rgba(201,168,96,0.55))">💡</span>
                     <div>
-                        <div style="font-size:1.3rem;font-weight:800;color:#f1f5f9;
+                        <div style="font-size:1.3rem;font-weight:800;color:#F4ECDC;
                                     letter-spacing:-0.3px">FinSight</div>
-                        <div style="font-size:0.75rem;color:#475569;font-weight:600;
+                        <div style="font-size:0.75rem;color:#6B5C50;font-weight:600;
                                     text-transform:uppercase;letter-spacing:0.07em">
                             AI Finance Tracker
                         </div>
                     </div>
                 </div>
-                <div style="font-size:0.78rem;color:#475569;margin-top:6px;
+                <div style="font-size:0.78rem;color:#A89880;margin-top:6px;
                             word-break:break-all">
                     {email}
                 </div>
@@ -380,13 +490,13 @@ def _render_sidebar() -> str:
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<hr style='border-color:rgba(255,255,255,0.05);margin:0 0 0.75rem 0'>",
+            "<hr style='border-color:rgba(244,236,220,0.06);margin:0 0 0.75rem 0'>",
             unsafe_allow_html=True,
         )
         selected = st.radio("nav", list(PAGES.keys()), label_visibility="collapsed")
         st.markdown("<div style='min-height:200px'></div>", unsafe_allow_html=True)
         st.markdown(
-            "<hr style='border-color:rgba(255,255,255,0.05);margin:0 0 0.75rem 0'>",
+            "<hr style='border-color:rgba(244,236,220,0.06);margin:0 0 0.75rem 0'>",
             unsafe_allow_html=True,
         )
         if st.button("  Log Out", use_container_width=True):

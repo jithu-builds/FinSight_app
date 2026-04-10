@@ -248,6 +248,20 @@ JSON:"""
         )
         raw = response.text
     except Exception as exc:
+        msg = str(exc)
+        if "429" in msg or "quota" in msg.lower() or "rate" in msg.lower():
+            return {
+                "summary": (
+                    "⚠️ AI insights are temporarily unavailable — your free Gemini API quota "
+                    "has been reached. Insights will work again once the quota resets (usually within a minute or after your billing cycle). "
+                    "Your transaction data is safe and fully visible in the Dashboard."
+                ),
+                "health_score": -1,
+                "alerts": [],
+                "predictions": [],
+                "recommendations": [],
+                "_rate_limited": True,
+            }
         raise RuntimeError(f"Gemini insights call failed: {exc}") from exc
 
     cleaned = _strip_fences(raw)
@@ -383,4 +397,10 @@ Assistant:"""
         )
         return response.text.strip()
     except Exception as exc:
+        msg = str(exc)
+        if "429" in msg or "quota" in msg.lower() or "rate" in msg.lower():
+            return (
+                "⚠️ I'm temporarily unavailable — the free Gemini API quota has been reached. "
+                "Please try again in a moment. Your transaction data is still fully visible in the Dashboard."
+            )
         raise RuntimeError(f"Gemini API call failed: {exc}") from exc

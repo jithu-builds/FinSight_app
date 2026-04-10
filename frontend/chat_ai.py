@@ -33,12 +33,11 @@ CHAT_CSS = """
     100% { opacity: 0.5; }
 }
 .ai-loading-card {
-    /* Full-screen fixed overlay — covers any stray content behind it */
     position: fixed;
     inset: 0;
     z-index: 99999;
     text-align: center;
-    background: #080d1a;
+    background: #1a1512;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -50,52 +49,53 @@ CHAT_CSS = """
     gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem;
 }
 .ai-step-chip {
-    background: rgba(99,102,241,0.1);
-    border: 1px solid rgba(99,102,241,0.25);
+    background: rgba(122,160,196,0.1);
+    border: 1px solid rgba(122,160,196,0.25);
     border-radius: 99px; padding: 6px 16px;
-    font-size: 0.78rem; color: #818cf8; font-weight: 600;
+    font-size: 0.78rem; color: #7AA0C4; font-weight: 600;
     animation: ai-shimmer 2s ease-in-out infinite;
 }
 .ai-step-chip:nth-child(2) { animation-delay: 0.4s; }
 .ai-step-chip:nth-child(3) { animation-delay: 0.8s; }
 .ai-step-chip:nth-child(4) { animation-delay: 1.2s; }
 
-/* ── Rec card ── */
+/* ── Rec card — sky-blue left border, gold category tag ── */
 .rec-card {
-    background: #111827;
-    border: 1px solid rgba(99,102,241,0.2);
-    border-left: 3px solid #6366f1;
+    background: #221c18;
+    border: 1px solid rgba(122,160,196,0.15);
+    border-left: 3px solid #7AA0C4;
     border-radius: 14px; padding: 1.1rem 1.25rem;
     margin-bottom: 0.65rem;
     display: flex; justify-content: space-between;
     align-items: flex-start; gap: 1rem;
 }
 .rec-card-body { flex: 1; }
-.rec-card-title { font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
-.rec-card-detail { font-size: 0.875rem; color: #64748b; line-height: 1.55; }
+.rec-card-title { font-weight: 700; color: #F4ECDC; margin-bottom: 4px; }
+.rec-card-detail { font-size: 0.875rem; color: #A89880; line-height: 1.55; }
 .rec-card-cat {
-    font-size: 0.72rem; color: #6366f1; margin-top: 6px;
+    font-size: 0.72rem; color: #C9A860; margin-top: 6px;
     font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
 }
 .rec-card-savings { text-align: center; min-width: 80px; }
 .rec-savings-label {
-    font-size: 0.65rem; color: #475569; text-transform: uppercase;
+    font-size: 0.65rem; color: #6B5C50; text-transform: uppercase;
     letter-spacing: 0.1em; margin-bottom: 2px;
 }
-.rec-savings-value { font-size: 1.2rem; font-weight: 800; color: #22c55e; }
+.rec-savings-value { font-size: 1.2rem; font-weight: 800; color: #7B9E87; }
 
-/* ── Chat section ── */
+/* ── Chat section — gold top border ── */
 .chat-header {
     display: flex; align-items: center; gap: 12px;
     padding: 1.25rem 1.5rem;
-    background: linear-gradient(135deg, #111827, #0f1623);
-    border: 1px solid rgba(255,255,255,0.07);
+    background: linear-gradient(135deg, #221c18, #1e1813);
+    border: 1px solid rgba(244,236,220,0.07);
+    border-top: 2px solid rgba(201,168,96,0.4);
     border-bottom: none;
     border-radius: 16px 16px 0 0;
 }
 .chat-header-icon { font-size: 1.5rem; line-height: 1; }
-.chat-header-title { font-size: 1rem; font-weight: 700; color: #f1f5f9; }
-.chat-header-sub { font-size: 0.78rem; color: #475569; }
+.chat-header-title { font-size: 1rem; font-weight: 700; color: #F4ECDC; }
+.chat-header-sub { font-size: 0.78rem; color: #A89880; }
 
 .chat-examples {
     display: flex; flex-wrap: wrap; gap: 0.5rem;
@@ -103,13 +103,13 @@ CHAT_CSS = """
 }
 .chat-empty-state {
     text-align: center; padding: 2rem 1rem;
-    color: #334155; font-size: 0.875rem;
+    color: #3a2f28; font-size: 0.875rem;
 }
 
 /* ── Prediction rows ── */
 .pred-row {
-    background: #111827;
-    border: 1px solid rgba(255,255,255,0.07);
+    background: #221c18;
+    border: 1px solid rgba(244,236,220,0.07);
     border-radius: 14px; padding: 1rem 1.25rem;
     margin-bottom: 0.6rem;
 }
@@ -117,17 +117,17 @@ CHAT_CSS = """
     display: flex; justify-content: space-between;
     align-items: center; margin-bottom: 8px;
 }
-.pred-title { font-weight: 600; color: #f1f5f9; }
-.pred-reason { font-size: 0.78rem; color: #64748b; }
+.pred-title { font-weight: 600; color: #F4ECDC; }
+.pred-reason { font-size: 0.78rem; color: #A89880; }
 .pred-numbers { display: flex; gap: 2rem; margin-bottom: 10px; }
 .pred-num-group { }
 .pred-num-label {
-    font-size: 0.68rem; color: #475569; text-transform: uppercase;
+    font-size: 0.68rem; color: #6B5C50; text-transform: uppercase;
     letter-spacing: 0.08em; margin-bottom: 2px;
 }
-.pred-num-value { font-size: 1.05rem; font-weight: 700; color: #f1f5f9; }
+.pred-num-value { font-size: 1.05rem; font-weight: 700; color: #C9A860; }
 .pred-bar-wrap {
-    background: rgba(255,255,255,0.06);
+    background: rgba(244,236,220,0.06);
     border-radius: 99px; height: 6px; overflow: hidden;
 }
 .pred-bar-fill {
@@ -142,7 +142,7 @@ CHAT_CSS = """
     font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.07em; margin-bottom: 6px;
 }
-.alert-msg { font-size: 0.875rem; color: #e2e8f0; line-height: 1.5; }
+.alert-msg { font-size: 0.875rem; color: #ede0cc; line-height: 1.5; }
 </style>
 """
 
@@ -187,12 +187,12 @@ def _show_loading_card() -> None:
         """
         <div class="ai-loading-card">
             <div style="font-size:4rem;margin-bottom:1.25rem;
-                        filter:drop-shadow(0 0 20px rgba(99,102,241,0.5))">🤖</div>
-            <h3 style="color:#f1f5f9;font-size:1.5rem;font-weight:800;
+                        filter:drop-shadow(0 0 20px rgba(122,160,196,0.5))">🤖</div>
+            <h3 style="color:#F4ECDC;font-size:1.5rem;font-weight:800;
                        margin-bottom:0.5rem;letter-spacing:-0.3px">
                 FinSight AI is analysing your finances
             </h3>
-            <p style="color:#475569;font-size:0.9rem;max-width:420px;
+            <p style="color:#A89880;font-size:0.9rem;max-width:420px;
                       margin:0 auto 1.5rem;line-height:1.6">
                 Reading your transactions, calculating patterns,
                 and generating personalised insights…
@@ -215,8 +215,8 @@ def _render_recommendations(recommendations: list[dict]) -> None:
     if not recommendations:
         st.markdown(
             """
-            <div style="text-align:center;padding:1.5rem;color:#334155;font-size:0.875rem;
-                        background:#111827;border-radius:14px;border:1px solid rgba(255,255,255,0.06)">
+            <div style="text-align:center;padding:1.5rem;color:#5c4e46;font-size:0.875rem;
+                        background:#221c18;border-radius:14px;border:1px solid rgba(244,236,220,0.06)">
                 🎉 No specific recommendations right now — your spending looks healthy!
             </div>
             """,
@@ -278,7 +278,7 @@ def _render_health_score(score: int, summary: str) -> None:
         ))
         fig.update_layout(
             paper_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#94a3b8"),
+            font=dict(color="#b8a898"),
             height=200,
             margin=dict(t=20, b=0, l=20, r=20),
         )
@@ -293,10 +293,10 @@ def _render_health_score(score: int, summary: str) -> None:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
             f"""
-            <div style="background:#111827;border:1px solid rgba(255,255,255,0.07);
+            <div style="background:#221c18;border:1px solid rgba(244,236,220,0.07);
                         border-left:3px solid {color};border-radius:14px;
                         padding:1.1rem 1.3rem;">
-                <p style="color:#e2e8f0;font-size:0.95rem;margin:0;line-height:1.6">{summary}</p>
+                <p style="color:#D4C4A8;font-size:0.95rem;margin:0;line-height:1.6">{summary}</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -307,8 +307,8 @@ def _render_alerts(alerts: list[dict]) -> None:
     if not alerts:
         st.markdown(
             """
-            <div style="text-align:center;padding:1rem;color:#334155;font-size:0.875rem;
-                        background:#111827;border-radius:14px;border:1px solid rgba(255,255,255,0.06)">
+            <div style="text-align:center;padding:1rem;color:#5c4e46;font-size:0.875rem;
+                        background:#221c18;border-radius:14px;border:1px solid rgba(244,236,220,0.06)">
                 ✅ No budget alerts — you're on track across all categories.
             </div>
             """,
@@ -335,8 +335,8 @@ def _render_predictions(predictions: list[dict]) -> None:
     if not predictions:
         st.markdown(
             """
-            <div style="text-align:center;padding:1rem;color:#334155;font-size:0.875rem;
-                        background:#111827;border-radius:14px;border:1px solid rgba(255,255,255,0.06)">
+            <div style="text-align:center;padding:1rem;color:#5c4e46;font-size:0.875rem;
+                        background:#221c18;border-radius:14px;border:1px solid rgba(244,236,220,0.06)">
                 Not enough data to generate predictions yet.
             </div>
             """,
@@ -354,13 +354,13 @@ def _render_predictions(predictions: list[dict]) -> None:
 
         budget_val  = float(budget) if budget else None
         pct         = min((predicted / budget_val * 100), 100) if budget_val else None
-        bar_color   = "#ef4444" if exceed else "#6366f1"
+        bar_color   = "#ef4444" if exceed else "#BD866A"
         status_icon = "⚠️" if exceed else "✅"
 
         budget_html = (
             f'<div class="pred-num-group">'
             f'<div class="pred-num-label">Budget</div>'
-            f'<div class="pred-num-value" style="color:#94a3b8">${budget_val:,.2f}</div>'
+            f'<div class="pred-num-value" style="color:#A89880">${budget_val:,.2f}</div>'
             f'</div>'
             if budget_val else ""
         )
@@ -456,7 +456,7 @@ def _render_chat(transactions: list[dict]) -> None:
     # ── Example question chips ────────────────────────────────────────────────
     if not st.session_state.chat_messages:
         st.markdown(
-            "<p style='color:#475569;font-size:0.8rem;margin:1rem 0 0.5rem;"
+            "<p style='color:#5c4e46;font-size:0.8rem;margin:1rem 0 0.5rem;"
             "font-weight:600;text-transform:uppercase;letter-spacing:0.08em'>"
             "Try asking:</p>",
             unsafe_allow_html=True,
@@ -557,11 +557,11 @@ def render() -> None:
     if not transactions:
         st.markdown(
             """
-            <div style="text-align:center;padding:4rem 2rem;background:#111827;
-                        border:1px solid rgba(255,255,255,0.07);border-radius:20px;margin:1rem 0">
+            <div style="text-align:center;padding:4rem 2rem;background:#221c18;
+                        border:1px solid rgba(244,236,220,0.07);border-radius:20px;margin:1rem 0">
                 <div style="font-size:3rem;margin-bottom:1rem">📂</div>
-                <h3 style="color:#f1f5f9;margin-bottom:0.5rem">No transaction data yet</h3>
-                <p style="color:#64748b">Upload a bank statement from the Dashboard to unlock AI insights.</p>
+                <h3 style="color:#F4ECDC;margin-bottom:0.5rem">No transaction data yet</h3>
+                <p style="color:#A89880">Upload a bank statement from the Dashboard to unlock AI insights.</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -588,6 +588,28 @@ def render() -> None:
 
     insights = st.session_state.get(cache_key)
     if not insights:
+        return
+
+    # ── Rate-limit banner — show friendly message, still render chat ──────────
+    if insights.get("_rate_limited"):
+        st.markdown(
+            f"""
+            <div style="background:rgba(201,168,96,0.08);border:1px solid rgba(201,168,96,0.25);
+                        border-left:3px solid #C9A860;border-radius:14px;padding:1.1rem 1.3rem;
+                        margin-bottom:1.5rem">
+                <div style="font-weight:700;color:#C9A860;margin-bottom:4px">
+                    ⚠️ Gemini API quota reached
+                </div>
+                <div style="color:#D4C4A8;font-size:0.875rem;line-height:1.6">
+                    {insights["summary"]}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        # Clear cache so next Refresh retries the API
+        st.session_state.pop(cache_key, None)
+        _render_chat(transactions)
         return
 
     # ── 1. Recommendations (most actionable — shown first) ────────────────────

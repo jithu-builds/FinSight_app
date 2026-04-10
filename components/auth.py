@@ -11,6 +11,7 @@ st.session_state keys written on success:
     access_token → str
 """
 
+import json
 from datetime import datetime, timedelta
 
 import streamlit as st
@@ -20,16 +21,16 @@ from backend.supabase_client import sign_in, sign_up, sign_out, reset_password
 
 
 COOKIE_EXPIRY = datetime.now() + timedelta(days=7)
-COOKIE_KEYS   = ("ft_user_id", "ft_user_email", "ft_access_token")
+_SESSION_COOKIE = "ft_session"  # single cookie — avoids duplicate key='set' error
 
 
 # ─── Cookie helpers ───────────────────────────────────────────────────────────
 
 def save_session_to_cookies(user_id: str, email: str, token: str) -> None:
+    """Store all session data in ONE cookie to avoid duplicate Streamlit component keys."""
     cm = _cm()
-    cm.set("ft_user_id",      user_id, expires_at=COOKIE_EXPIRY)
-    cm.set("ft_user_email",   email,   expires_at=COOKIE_EXPIRY)
-    cm.set("ft_access_token", token,   expires_at=COOKIE_EXPIRY)
+    data = json.dumps({"user_id": user_id, "email": email, "token": token})
+    cm.set(_SESSION_COOKIE, data, expires_at=COOKIE_EXPIRY)
 
 
 def restore_session_from_cookies() -> bool:
@@ -37,11 +38,19 @@ def restore_session_from_cookies() -> bool:
         return True
 
     cm = _cm()
-    user_id = cm.get("ft_user_id")
-    email   = cm.get("ft_user_email")
-    token   = cm.get("ft_access_token")
+    raw = cm.get(_SESSION_COOKIE)
+    if not raw:
+        return False
 
-    if user_id and email and token:
+    try:
+        data    = json.loads(raw)
+        user_id = data.get("user_id")
+        email   = data.get("email")
+        token   = data.get("token", "")
+    except (json.JSONDecodeError, AttributeError):
+        return False
+
+    if user_id and email:
         st.session_state.logged_in    = True
         st.session_state.user_id      = user_id
         st.session_state.user_email   = email
@@ -53,11 +62,10 @@ def restore_session_from_cookies() -> bool:
 
 def clear_session_cookies() -> None:
     cm = _cm()
-    for key in COOKIE_KEYS:
-        try:
-            cm.delete(key)
-        except Exception:
-            pass
+    try:
+        cm.delete(_SESSION_COOKIE)
+    except Exception:
+        pass
 
 
 # ─── Session state init ───────────────────────────────────────────────────────
@@ -150,57 +158,103 @@ def _handle_reset(email: str) -> None:
 
 _DIALOG_CSS = """
 <style>
-/* Style the Streamlit dialog backdrop and card */
+/* ── Backdrop: heavy blur + dark vignette ── */
+@keyframes fs-backdrop-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@keyframes fs-dialog-in {
+    from { opacity: 0; transform: translateY(28px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+
 [data-testid="stDialog"] > div {
-    background: rgba(0,0,0,0.65) !important;
-    backdrop-filter: blur(12px) !important;
+    background: rgba(8,5,3,0.62) !important;
+    backdrop-filter: blur(22px) saturate(160%) !important;
+    -webkit-backdrop-filter: blur(22px) saturate(160%) !important;
+    animation: fs-backdrop-in 0.25s ease forwards;
 }
 [data-testid="stDialog"] [data-testid="stModalDialog"] {
-    background: #0e1420 !important;
-    border: 1px solid rgba(255,255,255,0.07) !important;
-    border-radius: 20px !important;
-    box-shadow: 0 40px 80px rgba(0,0,0,0.7) !important;
+    background: #221c18 !important;
+    border: 1px solid rgba(244,236,220,0.09) !important;
+    border-radius: 22px !important;
+    box-shadow: 0 48px 96px rgba(0,0,0,0.7), 0 0 0 1px rgba(244,236,220,0.04) !important;
+    animation: fs-dialog-in 0.32s cubic-bezier(0.34, 1.46, 0.64, 1) forwards;
 }
-/* Top shimmer line on dialog card */
+/* Gold shimmer line at top of dialog */
 [data-testid="stDialog"] [data-testid="stModalDialog"]::before {
     content: '';
-    position: absolute; top: 0; left: 10%; right: 10%; height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(99,102,241,0.5), transparent);
+    position: absolute; top: 0; left: 8%; right: 8%; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(201,168,96,0.65), transparent);
 }
-/* Dialog title hidden — we render our own header */
 [data-testid="stDialog"] h2 { display: none !important; }
 
-.auth-dialog-logo {
-    text-align: center; padding: 0.5rem 0 1rem;
+/* Inputs inside dialog — sky-blue focus */
+[data-testid="stDialog"] label { color: #A89880 !important; font-size: 0.75rem !important; font-weight: 700 !important; text-transform: uppercase !important; letter-spacing: 0.08em !important; }
+[data-testid="stDialog"] input {
+    background: #2c2318 !important;
+    border-color: rgba(244,236,220,0.1) !important;
+    color: #F4ECDC !important; border-radius: 10px !important;
 }
+[data-testid="stDialog"] input:focus {
+    border-color: rgba(122,160,196,0.6) !important;
+    box-shadow: 0 0 0 3px rgba(122,160,196,0.15) !important;
+}
+
+/* Logo block */
+.auth-dialog-logo { text-align: center; padding: 0.5rem 0 1rem; }
 .auth-dialog-logo .icon {
     font-size: 2.2rem; display: block; margin-bottom: 0.4rem;
-    filter: drop-shadow(0 0 18px rgba(99,102,241,0.65));
+    filter: drop-shadow(0 0 18px rgba(201,168,96,0.7));
 }
 .auth-dialog-logo h3 {
     font-size: 1.5rem !important; font-weight: 800 !important;
-    color: #e2e8f0 !important; letter-spacing: -0.5px !important;
+    color: #F4ECDC !important; letter-spacing: -0.5px !important;
     margin: 0 0 0.1rem !important;
 }
 .auth-dialog-logo .sub {
-    font-size: 0.65rem; color: #475569; font-weight: 600;
+    font-size: 0.65rem; color: #6B5C50; font-weight: 600;
     text-transform: uppercase; letter-spacing: 0.16em;
 }
+
+/* Divider */
 .auth-divider {
     height: 1px; margin: 0.75rem 0 1rem;
-    background: linear-gradient(to right, transparent, rgba(255,255,255,0.06), transparent);
+    background: linear-gradient(to right, transparent, rgba(201,168,96,0.2), transparent);
 }
-.auth-reset-link {
-    text-align: right; margin-top: -0.25rem; margin-bottom: 0.75rem;
+
+/* Forgot password button — plain text link style */
+[data-testid="stDialog"] [data-testid="stButton"]:has(button[kind="secondary"]),
+[data-testid="stDialog"] div:has(> button[data-testid="baseButton-secondary"]) { text-align: left; }
+[data-testid="stDialog"] button[data-testid="baseButton-secondary"][key="forgot_pw"],
+[data-testid="stDialog"] .stButton:has(button[key="forgot_pw"]) button {
+    background: none !important; border: none !important;
+    box-shadow: none !important; color: #7AA0C4 !important;
+    font-size: 0.78rem !important; font-weight: 500 !important;
+    padding: 0 0.1rem !important; min-height: unset !important;
+    text-decoration: underline !important; text-underline-offset: 3px !important;
 }
-.auth-reset-link a {
-    font-size: 0.78rem; color: #5d6a82; text-decoration: none;
-    cursor: pointer; transition: color 0.15s;
+[data-testid="stDialog"] .stButton:has(button[key="forgot_pw"]) button:hover {
+    color: #A8C4DC !important; transform: none !important; box-shadow: none !important;
 }
-.auth-reset-link a:hover { color: #c7d2fe; }
+
+/* Footer note */
 .auth-footer {
     text-align: center; margin-top: 0.75rem;
-    font-size: 0.72rem; color: #334155;
+    font-size: 0.72rem; color: #6B5C50;
+}
+
+/* Hide "Press Enter to submit form" hint on password field */
+[data-testid="InputInstructions"] { display: none !important; }
+
+/* Tab active = gold */
+[data-testid="stDialog"] .stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, #C9A860 0%, #A88040 100%) !important;
+    color: #1a1512 !important;
+    box-shadow: 0 4px 14px rgba(201,168,96,0.35) !important;
+}
+[data-testid="stDialog"] .stTabs [data-baseweb="tab"] {
+    color: #6B5C50 !important;
 }
 </style>
 """
@@ -211,6 +265,10 @@ _DIALOG_CSS = """
 @st.dialog("FinSight", width="small")
 def show_auth_dialog() -> None:
     _init_session()
+    # Default to login if auth_mode isn't explicitly set (prevents reset mode
+    # persisting across dialog opens when user closes without completing reset)
+    if not st.session_state.get("auth_mode"):
+        st.session_state.auth_mode = "login"
     st.markdown(_DIALOG_CSS, unsafe_allow_html=True)
 
     # Brand header
@@ -229,7 +287,7 @@ def show_auth_dialog() -> None:
     # ── Reset password mode ────────────────────────────────────────────────────
     if st.session_state.get("auth_mode") == "reset":
         st.markdown(
-            "<p style='font-size:0.85rem;color:#5d6a82;font-family:Inter,sans-serif;"
+            "<p style='font-size:0.85rem;color:#A89880;"
             "margin-bottom:1rem'>Enter your email and we'll send you a reset link.</p>",
             unsafe_allow_html=True,
         )
@@ -242,6 +300,7 @@ def show_auth_dialog() -> None:
         st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
         if st.button("← Back to Log In", key="back_to_login", use_container_width=False):
             st.session_state.auth_mode = "login"
+            st.session_state._auth_trigger = True
             st.rerun()
 
         st.markdown(
@@ -263,31 +322,11 @@ def show_auth_dialog() -> None:
         if submitted:
             _handle_sign_in(email, password)
 
-        # Forgot password — styled as a subtle text link
-        st.markdown(
-            """
-            <style>
-            [data-testid="stDialog"] button[kind="secondary"]:has(+ *),
-            div[data-testid="stDialog"] .forgot-btn button {
-                background: none !important; border: none !important;
-                box-shadow: none !important; color: #5d6a82 !important;
-                font-size: 0.78rem !important; font-weight: 400 !important;
-                padding: 0 !important; text-decoration: underline !important;
-                text-underline-offset: 3px !important;
-            }
-            div[data-testid="stDialog"] .forgot-btn button:hover {
-                color: #c4b5fd !important; transform: none !important;
-                box-shadow: none !important;
-            }
-            </style>
-            <div class="forgot-btn">
-            """,
-            unsafe_allow_html=True,
-        )
+        # Forgot password link
         if st.button("Forgot password?", key="forgot_pw"):
             st.session_state.auth_mode = "reset"
+            st.session_state._auth_trigger = True
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with tab_signup:
         st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)

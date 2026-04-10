@@ -89,42 +89,66 @@ REDUCTO_API_KEY=your-reducto-api-key
 
 ### 4. Set up the Supabase database
 
-Go to your **Supabase project → SQL Editor** and run:
+Go to your **Supabase project → SQL Editor** and run the following scripts in order.
+
+#### 4a. Create tables
 
 ```sql
-CREATE TABLE IF NOT EXISTS transactions (
-    id          UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id     UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+-- Transactions table
+CREATE TABLE IF NOT EXISTS public.transactions (
+    id          UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID          NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     date        DATE,
     description TEXT,
     amount      NUMERIC(12, 2),
     category    TEXT,
     source_file TEXT,
-    created_at  TIMESTAMPTZ DEFAULT NOW()
+    created_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS budgets (
-    id            UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id       UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    category      TEXT        NOT NULL,
+-- Budgets table
+CREATE TABLE IF NOT EXISTS public.budgets (
+    id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id       UUID          NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    category      TEXT          NOT NULL,
     monthly_limit NUMERIC(12, 2) NOT NULL,
-    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, category)
 );
-
-ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE budgets      ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users see own transactions"
-    ON transactions FOR ALL USING (auth.uid() = user_id);
-
-CREATE POLICY "Users see own budgets"
-    ON budgets FOR ALL USING (auth.uid() = user_id);
-
-ALTER TABLE transactions
-ADD CONSTRAINT unique_transaction
-UNIQUE (user_id, date, description, amount);
 ```
+
+#### 4b. Add deduplication constraint
+
+```sql
+-- Prevents the same transaction being imported twice from the same statement
+ALTER TABLE public.transactions
+    ADD CONSTRAINT uq_transaction
+    UNIQUE (user_id, date, description, amount);
+```
+
+#### 4c. Enable Row Level Security
+
+```sql
+-- Enable RLS so users can only access their own rows
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.budgets      ENABLE ROW LEVEL SECURITY;
+
+-- Transactions policy
+CREATE POLICY "transactions: owner access"
+    ON public.transactions
+    FOR ALL
+    USING  (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+-- Budgets policy
+CREATE POLICY "budgets: owner access"
+    ON public.budgets
+    FOR ALL
+    USING  (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+```
+
+> **Note:** `gen_random_uuid()` is available in PostgreSQL 13+ (all Supabase projects). If you're on an older project still using `uuid-ossp`, replace `gen_random_uuid()` with `uuid_generate_v4()`.
 
 ### 5. Run the app
 

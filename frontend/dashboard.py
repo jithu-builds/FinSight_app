@@ -24,23 +24,23 @@ from backend.supabase_client import (
 )
 
 CATEGORY_COLORS = {
-    "Food & Dining":  "#6366f1",
-    "Transport":      "#22d3ee",
-    "Shopping":       "#f59e0b",
-    "Entertainment":  "#ec4899",
-    "Utilities":      "#10b981",
-    "Rent & Housing": "#f97316",
-    "Healthcare":     "#ef4444",
-    "Income":         "#84cc16",
-    "Transfer":       "#a78bfa",
-    "Subscriptions":  "#06b6d4",
-    "Other":          "#64748b",
+    "Food & Dining":  "#BD866A",   # terracotta
+    "Transport":      "#7AA0C4",   # dusty sky
+    "Shopping":       "#C9A860",   # warm gold
+    "Entertainment":  "#C97B7B",   # muted rose
+    "Utilities":      "#7B9E87",   # sage green
+    "Rent & Housing": "#A07850",   # deep amber
+    "Healthcare":     "#B07090",   # mauve
+    "Income":         "#8FB87A",   # light sage
+    "Transfer":       "#A89880",   # cream-muted
+    "Subscriptions":  "#89685F",   # dark terracotta
+    "Other":          "#6B5C50",   # cream-dim
 }
 
 PLOT_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#94a3b8", size=12),
+    font=dict(color="#A89880", size=12),
     margin=dict(t=10, b=10, l=10, r=10),
 )
 
@@ -150,7 +150,7 @@ def _render_charts(df: pd.DataFrame) -> None:
         fig.update_traces(
             textposition="inside", textinfo="percent+label",
             textfont_size=11,
-            marker=dict(line=dict(color="#080d1a", width=2)),
+            marker=dict(line=dict(color="#1a1512", width=2)),
         )
         fig.update_layout(**PLOT_LAYOUT, showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
@@ -163,15 +163,15 @@ def _render_charts(df: pd.DataFrame) -> None:
             orientation="h",
             text=[f"${v:,.0f}" for v in cat_totals["Total Spent"]],
             textposition="outside",
-            textfont=dict(color="#f1f5f9", size=11),
+            textfont=dict(color="#F4ECDC", size=11),
             marker_color=color_seq,
             marker_line_width=0,
         ))
         fig.update_layout(
             **PLOT_LAYOUT,
-            yaxis=dict(categoryorder="total ascending", tickfont=dict(color="#94a3b8")),
+            yaxis=dict(categoryorder="total ascending", tickfont=dict(color="#A89880")),
             xaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)",
-                       tickfont=dict(color="#64748b")),
+                       tickfont=dict(color="#6B5C50")),
             bargap=0.3,
         )
         st.plotly_chart(fig, use_container_width=True)
@@ -192,20 +192,22 @@ def _render_charts(df: pd.DataFrame) -> None:
             )
             fig.update_layout(
                 **PLOT_LAYOUT,
-                xaxis=dict(tickfont=dict(color="#94a3b8")),
-                yaxis=dict(gridcolor="rgba(255,255,255,0.05)", tickfont=dict(color="#64748b")),
+                xaxis=dict(tickfont=dict(color="#A89880")),
+                yaxis=dict(gridcolor="rgba(244,236,220,0.05)", tickfont=dict(color="#7a6b60")),
                 legend=dict(
-                    title=dict(text=""),          # remove "category" header
-                    bgcolor="rgba(17,24,39,0.85)",
-                    bordercolor="rgba(255,255,255,0.08)",
+                    title=dict(text=""),
+                    bgcolor="rgba(34,28,24,0.85)",
+                    bordercolor="rgba(244,236,220,0.1)",
                     borderwidth=1,
-                    font=dict(color="#94a3b8", size=12),
+                    font=dict(color="#A89880", size=11),
                     itemsizing="constant",
-                    tracegroupgap=4,
-                    x=1.01, xanchor="left",       # pin legend to the right
+                    orientation="h",
+                    x=0.5, xanchor="center",
+                    y=-0.22, yanchor="top",
                 ),
                 bargap=0.2,
             )
+            fig.update_layout(margin=dict(t=10, b=90, l=10, r=10))
             st.plotly_chart(fig, use_container_width=True)
 
 
@@ -343,39 +345,38 @@ def _render_manage_section(df: pd.DataFrame) -> None:
     if df.empty or "id" not in df.columns:
         return
 
-    with st.expander("✏️  Edit or Delete a Transaction", expanded=False):
-        st.caption("Select a transaction from the list to edit its details or remove it.")
+    st.caption("Select a transaction from the list to edit its details or remove it.")
 
-        # Build display labels
-        def _label(row: pd.Series) -> str:
-            date_part = str(row.get("date", ""))[:10]
-            desc_part = str(row.get("description", ""))[:40]
-            amt       = row.get("amount", 0)
-            sign      = "-" if float(amt) < 0 else "+"
-            return f"{date_part}  ·  {desc_part}  ·  {sign}${abs(float(amt)):,.2f}"
+    # Build display labels
+    def _label(row: pd.Series) -> str:
+        date_part = str(row.get("date", ""))[:10]
+        desc_part = str(row.get("description", ""))[:40]
+        amt       = row.get("amount", 0)
+        sign      = "-" if float(amt) < 0 else "+"
+        return f"{date_part}  ·  {desc_part}  ·  {sign}${abs(float(amt)):,.2f}"
 
-        labels = df.apply(_label, axis=1).tolist()
-        ids    = df["id"].tolist()
+    labels = df.apply(_label, axis=1).tolist()
+    ids    = df["id"].tolist()
 
-        selected_idx = st.selectbox(
-            "Choose transaction",
-            range(len(labels)),
-            format_func=lambda i: labels[i],
-            label_visibility="collapsed",
-        )
+    selected_idx = st.selectbox(
+        "Choose transaction",
+        range(len(labels)),
+        format_func=lambda i: labels[i],
+        label_visibility="collapsed",
+    )
 
-        if selected_idx is not None:
-            row    = df.iloc[selected_idx]
-            txn_id = ids[selected_idx]
-            txn    = row.to_dict()
+    if selected_idx is not None:
+        row    = df.iloc[selected_idx]
+        txn_id = ids[selected_idx]
+        txn    = row.to_dict()
 
-            col_edit, col_del, _ = st.columns([1, 1, 4])
-            with col_edit:
-                if st.button("✏️  Edit", key="btn_edit", use_container_width=True):
-                    _edit_transaction_dialog(txn)
-            with col_del:
-                if st.button("🗑️  Delete", key="btn_del", use_container_width=True):
-                    _confirm_delete_dialog(txn_id, str(txn.get("description", "")))
+        col_edit, col_del, _ = st.columns([1, 1, 4])
+        with col_edit:
+            if st.button("✏️  Edit", key="btn_edit", use_container_width=True):
+                _edit_transaction_dialog(txn)
+        with col_del:
+            if st.button("🗑️  Delete", key="btn_del", use_container_width=True):
+                _confirm_delete_dialog(txn_id, str(txn.get("description", "")))
 
 
 # ── Scroll helper (robust across Streamlit versions) ─────────────────────────
@@ -494,19 +495,45 @@ def render() -> None:
 
     # ── Upload section ─────────────────────────────────────────────────────────
     st.subheader("Upload Bank Statement")
+    st.markdown(
+        """
+        <div style="background:rgba(122,160,196,0.07);border:1px solid rgba(122,160,196,0.2);
+                    border-radius:12px;padding:0.75rem 1rem;margin-bottom:0.75rem;
+                    font-size:0.82rem;color:#A89880;line-height:1.7">
+            <b style="color:#7AA0C4">📋 Requirements:</b>
+            &nbsp; PDF format only &nbsp;·&nbsp;
+            Text-selectable (not a scanned image) &nbsp;·&nbsp;
+            Any bank's statement layout is supported &nbsp;·&nbsp;
+            Max recommended size: 20 MB
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     uploaded_file = st.file_uploader(
-        "Select a PDF bank statement", type=["pdf"],
-        help="Supported: most bank-exported PDF statements",
+        "Select a PDF bank statement",
+        type=["pdf"],
         key="pdf_uploader",
+        label_visibility="collapsed",
     )
+
+    # Reject non-PDFs (drag-and-drop edge case)
+    if uploaded_file is not None and not uploaded_file.name.lower().endswith(".pdf"):
+        st.error("❌ Only PDF files are supported. Please upload a bank statement in PDF format.")
+        uploaded_file = None
+
+    # Enforce 20 MB limit
+    if uploaded_file is not None and uploaded_file.size > 20 * 1024 * 1024:
+        size_mb = uploaded_file.size / (1024 * 1024)
+        st.error(f"❌ File too large ({size_mb:.1f} MB). Please upload a PDF under 20 MB.")
+        uploaded_file = None
 
     if uploaded_file is not None:
         col_btn, col_info, _ = st.columns([1, 3, 2])
         with col_info:
             st.markdown(
-                f"<div style='padding:0.55rem 0;color:#94a3b8;font-size:0.875rem'>"
-                f"📄 <b style='color:#f1f5f9'>{uploaded_file.name}</b> "
+                f"<div style='padding:0.55rem 0;color:#D4C4A8;font-size:0.875rem'>"
+                f"📄 <b style='color:#F4ECDC'>{uploaded_file.name}</b> "
                 f"({uploaded_file.size / 1024:.1f} KB) ready to upload</div>",
                 unsafe_allow_html=True,
             )

@@ -17,15 +17,15 @@ CATEGORIES = [
 ]
 
 CATEGORY_COLORS = {
-    "Food & Dining":  "#6366f1",
-    "Transport":      "#22d3ee",
-    "Shopping":       "#f59e0b",
-    "Entertainment":  "#ec4899",
-    "Utilities":      "#10b981",
-    "Rent & Housing": "#f97316",
-    "Healthcare":     "#ef4444",
-    "Subscriptions":  "#06b6d4",
-    "Other":          "#64748b",
+    "Food & Dining":  "#BD866A",   # terracotta
+    "Transport":      "#7AA0C4",   # dusty sky
+    "Shopping":       "#C9A860",   # warm gold
+    "Entertainment":  "#C97B7B",   # muted rose
+    "Utilities":      "#7B9E87",   # sage green
+    "Rent & Housing": "#A07850",   # deep amber
+    "Healthcare":     "#B07090",   # mauve
+    "Subscriptions":  "#89685F",   # dark terracotta
+    "Other":          "#6B5C50",   # cream-dim
 }
 
 
@@ -71,8 +71,22 @@ _SCROLL_JS = """
 """
 
 
+_BUDGET_CSS = """
+<style>
+@keyframes bud-panel-in {
+    from { opacity: 0; transform: translateY(-10px); max-height: 0; }
+    to   { opacity: 1; transform: translateY(0);    max-height: 2000px; }
+}
+.budget-form-panel {
+    animation: bud-panel-in 0.28s cubic-bezier(0.34, 1.3, 0.64, 1) forwards;
+    overflow: hidden;
+}
+</style>
+"""
+
 def render() -> None:
     _stc.html(_SCROLL_JS, height=1)
+    st.markdown(_BUDGET_CSS, unsafe_allow_html=True)
     st.title("💰 Budgeting")
 
     txn_df, bud_df = _load_data()
@@ -110,10 +124,27 @@ def render() -> None:
             else:
                 st.warning("Couldn't generate suggestions — try uploading more transaction data.")
 
-    st.divider()
+    # ── Set Budgets — button-triggered inline form ────────────────────────────
+    if "show_budget_form" not in st.session_state:
+        st.session_state.show_budget_form = bud_df.empty  # auto-open when no budgets
 
-    # ── Set Budgets form ──────────────────────────────────────────────────────
-    with st.expander("⚙️ Set Monthly Budget Limits", expanded=bud_df.empty):
+    if st.button(
+        "⚙️ Set Monthly Budget Limits" if not st.session_state.show_budget_form
+        else "✕ Close Budget Editor",
+        use_container_width=False,
+    ):
+        st.session_state.show_budget_form = not st.session_state.show_budget_form
+        st.rerun()
+
+    if st.session_state.show_budget_form:
+        st.markdown(
+            """
+            <div class="budget-form-panel">
+            <div style="background:rgba(201,168,96,0.06);border:1px solid rgba(201,168,96,0.18);
+                        border-radius:12px;padding:1.2rem 1.4rem 0.6rem;margin:0.75rem 0 1rem">
+            """,
+            unsafe_allow_html=True,
+        )
         ai_suggestions = st.session_state.get("ai_budget_suggestions", {})
 
         with st.form("budget_form"):
@@ -122,7 +153,6 @@ def render() -> None:
             inputs: dict[str, float] = {}
 
             for idx, cat in enumerate(CATEGORIES):
-                # Priority: existing saved → AI suggestion → 0
                 default = existing_limits.get(cat) or ai_suggestions.get(cat) or 0.0
                 with cols[idx % 3]:
                     inputs[cat] = st.number_input(
@@ -130,7 +160,9 @@ def render() -> None:
                         step=50.0, format="%.2f",
                     )
 
-            submitted = st.form_submit_button("Save Budgets", use_container_width=True)
+            submitted = st.form_submit_button("💾 Save Budgets", use_container_width=True)
+
+        st.markdown("</div></div>", unsafe_allow_html=True)
 
         if submitted:
             errors = []
@@ -146,6 +178,7 @@ def render() -> None:
                 st.success("Budgets saved!")
                 if "ai_budget_suggestions" in st.session_state:
                     del st.session_state["ai_budget_suggestions"]
+                st.session_state.show_budget_form = False
                 st.rerun()
 
     st.divider()
@@ -187,38 +220,54 @@ def render() -> None:
     budgets_vals = [limits_map[c] for c in budgeted_cats]
     actual_vals  = [actuals_map.get(c, 0) for c in budgeted_cats]
 
+    # Per-category colours for both bars — budget = translucent, actual = solid
+    def _hex_to_rgba(hex_color: str, alpha: float) -> str:
+        h = hex_color.lstrip("#")
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return f"rgba({r},{g},{b},{alpha})"
+
+    cat_colors     = [CATEGORY_COLORS.get(c, "#BD866A") for c in budgeted_cats]
+    budget_fills   = [_hex_to_rgba(col, 0.18) for col in cat_colors]
+    budget_borders = cat_colors
+    actual_fills   = [
+        "#C97B7B" if actual_vals[i] > budgets_vals[i] else _hex_to_rgba(cat_colors[i], 0.85)
+        for i in range(len(budgeted_cats))
+    ]
+
     fig = go.Figure()
     fig.add_trace(go.Bar(
         name="Budget", x=budgeted_cats, y=budgets_vals,
-        marker_color="rgba(99,102,241,0.35)",
-        marker_line=dict(color="#6366f1", width=1.5),
+        marker_color=budget_fills,
+        marker_line=dict(color=budget_borders, width=1.5),
         text=[f"${v:,.0f}" for v in budgets_vals],
-        textposition="outside", textfont=dict(color="#6366f1", size=10),
+        textposition="outside", textfont=dict(color="#A89880", size=10),
     ))
     fig.add_trace(go.Bar(
         name="Actual",
         x=budgeted_cats,
         y=actual_vals,
-        marker_color=[
-            "#ef4444" if actual_vals[i] > budgets_vals[i] else CATEGORY_COLORS.get(c, "#6366f1")
-            for i, c in enumerate(budgeted_cats)
-        ],
-        marker_line_width=0,
+        marker_color=actual_fills,
+        marker_line=dict(
+            color=["#C97B7B" if actual_vals[i] > budgets_vals[i] else cat_colors[i]
+                   for i in range(len(budgeted_cats))],
+            width=0,
+        ),
         text=[f"${v:,.0f}" for v in actual_vals],
-        textposition="outside", textfont=dict(color="#f1f5f9", size=10),
+        textposition="outside", textfont=dict(color="#F4ECDC", size=10),
     ))
     fig.update_layout(
         barmode="group",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#94a3b8"),
-        xaxis=dict(tickangle=-25, gridcolor="rgba(255,255,255,0.04)"),
-        yaxis=dict(gridcolor="rgba(255,255,255,0.05)", tickprefix="$"),
+        font=dict(color="#A89880"),
+        xaxis=dict(tickangle=-25, gridcolor="rgba(244,236,220,0.04)", tickfont=dict(color="#A89880")),
+        yaxis=dict(gridcolor="rgba(244,236,220,0.05)", tickprefix="$", tickfont=dict(color="#6B5C50")),
         legend=dict(
-            bgcolor="rgba(30,41,59,0.8)", bordercolor="rgba(255,255,255,0.1)",
-            borderwidth=1, font=dict(color="#94a3b8"),
+            bgcolor="rgba(34,28,24,0.85)", bordercolor="rgba(244,236,220,0.1)",
+            borderwidth=1, font=dict(color="#D4C4A8"),
+            orientation="h", x=0.5, xanchor="center", y=-0.18, yanchor="top",
         ),
-        margin=dict(t=20, b=60),
+        margin=dict(t=20, b=80),
         bargap=0.25, bargroupgap=0.05,
     )
     st.plotly_chart(fig, use_container_width=True)
