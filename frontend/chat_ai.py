@@ -190,7 +190,7 @@ def _show_loading_card() -> None:
                         filter:drop-shadow(0 0 20px rgba(122,160,196,0.5))">🤖</div>
             <h3 style="color:#F4ECDC;font-size:1.5rem;font-weight:800;
                        margin-bottom:0.5rem;letter-spacing:-0.3px">
-                FinSight AI is analysing your finances
+                Expenger AI is analysing your finances
             </h3>
             <p style="color:#A89880;font-size:0.9rem;max-width:420px;
                       margin:0 auto 1.5rem;line-height:1.6">
@@ -442,7 +442,7 @@ def _render_chat(transactions: list[dict]) -> None:
         <div class="chat-header">
             <div class="chat-header-icon">💬</div>
             <div>
-                <div class="chat-header-title">Ask FinSight AI</div>
+                <div class="chat-header-title">Ask Expenger AI</div>
                 <div class="chat-header-sub">Ask anything about your spending, budgets, or financial habits</div>
             </div>
         </div>
@@ -546,7 +546,7 @@ def render() -> None:
     hdr_col, btn_col = st.columns([5, 1])
     with hdr_col:
         st.title("🧠 AI Insights")
-        st.caption("Powered by FinSight AI · Personalised analysis of your spending patterns.")
+        st.caption("Powered by Expenger AI · Personalised analysis of your spending patterns.")
     with btn_col:
         st.markdown("<div style='padding-top:1.1rem'>", unsafe_allow_html=True)
         refresh = st.button("🔄 Refresh", use_container_width=True)

@@ -1,5 +1,5 @@
 """
-FinSight landing page — Mint-inspired warm earthy design.
+Expenger landing page — Mint-inspired warm earthy design.
 """
 
 import streamlit as st
@@ -46,11 +46,11 @@ html { scroll-behavior: smooth; }
 }
 .lp-nav-logo-text { display: flex; flex-direction: column; gap: 1px; }
 .lp-nav-logo-name {
-    font-size: 1.3rem; font-weight: 800; color: #F4ECDC;
-    letter-spacing: -0.3px; line-height: 1;
+    font-size: 1.7rem; font-weight: 900; color: #F4ECDC;
+    letter-spacing: -0.5px; line-height: 1;
 }
 .lp-nav-logo-sub {
-    font-size: 0.58rem; font-weight: 600; color: #5c4e46;
+    font-size: 0.62rem; font-weight: 600; color: #5c4e46;
     letter-spacing: 0.18em; text-transform: uppercase; line-height: 1;
 }
 .lp-nav-links {
@@ -674,9 +674,11 @@ def render() -> None:
     #     opens cleanly with no further reruns pending.
     if st.query_params.get("show_auth") == "1":
         st.session_state._auth_trigger = True
+        st.session_state._auth_open    = True   # persists until login succeeds
         st.session_state.auth_mode = st.session_state.get("auth_mode") or "login"
-        st.query_params.clear()        # triggers pass 2 — do NOT open dialog yet
+        st.query_params.clear()
     elif st.session_state.pop("_auth_trigger", False):
+        st.session_state._auth_open = True
         show_auth_dialog()
 
     # ── Navbar ─────────────────────────────────────────────────────────────────
@@ -684,10 +686,9 @@ def render() -> None:
         """
         <div class="lp-nav">
             <div class="lp-nav-logo">
-                <div class="lp-nav-logo-icon">💡</div>
                 <div class="lp-nav-logo-text">
-                    <span class="lp-nav-logo-name">FinSight</span>
-                    <span class="lp-nav-logo-sub">Financial Intelligence</span>
+                    <span class="lp-nav-logo-name">Expenger</span>
+                    <span class="lp-nav-logo-sub">AI Expense Manager</span>
                 </div>
             </div>
             <ul class="lp-nav-links">
@@ -723,7 +724,7 @@ def render() -> None:
                     your money <span class="grad">goes every month</span>
                 </h1>
                 <p class="lp-hero-sub">
-                    Upload your bank statement. FinSight AI reads every transaction,
+                    Upload your bank statement. Expenger AI reads every transaction,
                     builds your spending map, sets smart budgets, and tells you
                     exactly what to change — in seconds.
                 </p>
@@ -741,6 +742,7 @@ def render() -> None:
             st.markdown("<div class='lp-btn-primary' style='padding-left:3rem'>", unsafe_allow_html=True)
             if st.button("🚀  Get Started Free", key="hero_cta", use_container_width=True):
                 st.session_state.auth_mode = "signup"
+                st.session_state._auth_open = True
                 show_auth_dialog()
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -749,21 +751,6 @@ def render() -> None:
             f"<div style='padding:3rem 3rem 2rem 0'>{MOCKUP_HTML}</div>",
             unsafe_allow_html=True,
         )
-
-    # ── Trusted strip ──────────────────────────────────────────────────────────
-    st.markdown(
-        """
-        <div class="lp-trusted">
-            <span class="lp-trusted-label">Trusted security from</span>
-            <span class="lp-trusted-item">🔐 Supabase Auth</span>
-            <span class="lp-trusted-item">🛡️ Row-Level Security</span>
-            <span class="lp-trusted-item">🤖 Google Gemini AI</span>
-            <span class="lp-trusted-item">📄 Reducto PDF Engine</span>
-            <span class="lp-trusted-item">🔒 256-bit Encryption</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
     # ── Stats bar ──────────────────────────────────────────────────────────────
     st.markdown(
@@ -813,7 +800,7 @@ def render() -> None:
                 <div class="lp-feat-tag">SMART IMPORT</div>
                 <div class="lp-feat-h3">Drop a PDF.<br>Get your full spending picture.</div>
                 <p class="lp-feat-p">
-                    Export any bank statement as a PDF and upload it. FinSight reads
+                    Export any bank statement as a PDF and upload it. Expenger reads
                     every line using the Reducto AI engine — extracting dates, merchants,
                     and amounts automatically, regardless of your bank's format.
                 </p>
@@ -849,7 +836,7 @@ def render() -> None:
                 <div class="lp-feat-tag">BUDGET MANAGEMENT</div>
                 <div class="lp-feat-h3">Set budgets that actually stick.</div>
                 <p class="lp-feat-p">
-                    FinSight analyses your past spending, suggests smart monthly budgets
+                    Expenger analyses your past spending, suggests smart monthly budgets
                     per category, and tracks your progress in real time — so you always
                     know if you're on track before it's too late.
                 </p>
@@ -875,7 +862,7 @@ def render() -> None:
                 <div class="lp-feat-tag">AI INSIGHTS</div>
                 <div class="lp-feat-h3">Your personal finance advisor — on demand.</div>
                 <p class="lp-feat-p">
-                    Ask FinSight anything about your money. "Where did I overspend last month?"
+                    Ask Expenger anything about your money. "Where did I overspend last month?"
                     "How much did I spend on food vs transport?" Get intelligent, specific answers
                     powered by Google Gemini — not generic tips.
                 </p>
@@ -911,14 +898,14 @@ def render() -> None:
                 <div class="lp-step-title">Upload your bank statement</div>
                 <div class="lp-step-desc">
                     Export a PDF from your bank app or internet banking.
-                    Drag and drop it into FinSight — any bank, any format.
+                    Drag and drop it into Expenger — any bank, any format.
                 </div>
             </div>
             <div class="lp-step">
                 <div class="lp-step-num">2</div>
                 <div class="lp-step-title">AI reads and categorises</div>
                 <div class="lp-step-desc">
-                    FinSight AI extracts every transaction and categorises it —
+                    Expenger AI extracts every transaction and categorises it —
                     Food, Transport, Shopping, Utilities — in seconds.
                 </div>
             </div>
@@ -950,7 +937,7 @@ def render() -> None:
                 <div class="lp-tcard-stars">★★★★★</div>
                 <div class="lp-tcard-quote">
                     "I had no idea I was spending $400 a month on food delivery.
-                    FinSight showed me in 30 seconds. I've already cut it in half."
+                    Expenger showed me in 30 seconds. I've already cut it in half."
                 </div>
                 <div class="lp-tcard-author">
                     <div class="lp-tcard-avatar" style="background:linear-gradient(135deg,#BD866A,#89685F)">A</div>
@@ -1015,12 +1002,13 @@ def render() -> None:
         '<div class="lp-sec-card"><span class="lp-sec-card-icon">🛡️</span><div class="lp-sec-card-title">No Data Sharing</div><div class="lp-sec-card-desc">We never sell or share your financial data with any third party. Ever.</div></div>'
         '</div>'
         '</div>'
-        '<div class="lp-footer-row">'
-        '<div class="lp-footer-logo-txt">💡 FinSight</div>'
-        '<div class="lp-footer-links-row">'
-        '<a href="#security" target="_self" onclick="(function(){var el=document.getElementById(\'security\')||window.parent.document.getElementById(\'security\');if(el){event.preventDefault();el.scrollIntoView({behavior:\'smooth\',block:\'start\'});}})()">Security</a>'
-        '<a href="mailto:support@finsight.app">Contact Us</a>'
-        '</div>'
+        '<div class="lp-trusted" style="margin-top:3rem;border-bottom:none;border-top:1px solid rgba(244,236,220,0.06)">'
+        '<span class="lp-trusted-label">Trusted security from</span>'
+        '<span class="lp-trusted-item">🔐 Supabase Auth</span>'
+        '<span class="lp-trusted-item">🛡️ Row-Level Security</span>'
+        '<span class="lp-trusted-item">🤖 Google Gemini AI</span>'
+        '<span class="lp-trusted-item">📄 Reducto PDF Engine</span>'
+        '<span class="lp-trusted-item">🔒 256-bit Encryption</span>'
         '</div>'
         '</div>'
     )

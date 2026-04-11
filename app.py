@@ -1,5 +1,5 @@
 """
-FinSight — AI Personal Finance Tracker · Streamlit entry point.
+Expenger — AI Expense Manager · Streamlit entry point.
 
 Run with:
     streamlit run app.py
@@ -10,20 +10,20 @@ import extra_streamlit_components as stx
 from components.session_store import set_cm
 
 st.set_page_config(
-    page_title="FinSight",
-    page_icon="💡",
+    page_title="Expenger",
+    page_icon="💸",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # Create CookieManager ONCE per render and register it in the shared store.
-set_cm(stx.CookieManager(key="finsight_cookies"))
+set_cm(stx.CookieManager(key="expenger_cookies"))
 
 # ─── Global CSS ───────────────────────────────────────────────────────────────
 GLOBAL_CSS = """
 <style>
 /*
- * FinSight design tokens
+ * Expenger design tokens
  * -----------------------------------------
  * bg-deep:      #1a1512  page background
  * bg-card:      #221c18  card / surface
@@ -291,6 +291,15 @@ div[data-testid="stInfo"]    { border-left: 3px solid #7AA0C4 !important; }
 div[data-testid="stSuccess"] { border-left: 3px solid #7B9E87 !important; }
 div[data-testid="stWarning"] { border-left: 3px solid #C9A860 !important; }
 div[data-testid="stError"]   { border-left: 3px solid #C97B7B !important; }
+
+/* ── Hide dialog native title bar ── */
+[data-testid="stDialog"] h2,
+[data-testid="stDialog"] h1,
+[data-testid="stDialog"] header,
+[data-testid="stDialog"] [data-testid="stDialogTitle"],
+[data-testid="stDialog"] [data-testid="stHeadingWithActionElements"] {
+    display: none !important;
+}
 </style>
 """
 
@@ -334,8 +343,8 @@ _loader.markdown(
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
     .fsl-icon  { font-size: 3.5rem; animation: fsl-pulse 1.6s ease-in-out infinite; }
-    .fsl-title { color: #F4ECDC; font-size: 1.65rem; font-weight: 800;
-                 letter-spacing: -0.5px; margin: 0.25rem 0 0; }
+    .fsl-title { color: #F4ECDC; font-size: 2.4rem; font-weight: 900;
+                 letter-spacing: -1px; margin: 0.25rem 0 0; }
     .fsl-sub   { color: #6B5C50; font-size: 0.85rem; margin: 0 0 1.25rem; }
     .fsl-ring  {
         width: 40px; height: 40px;
@@ -347,8 +356,7 @@ _loader.markdown(
     @keyframes fsl-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
     </style>
     <div id="fs-loader">
-        <div class="fsl-icon">💡</div>
-        <p class="fsl-title">FinSight</p>
+        <p class="fsl-title">Expenger</p>
         <p class="fsl-sub">Loading your workspace…</p>
         <div class="fsl-ring"></div>
     </div>
@@ -398,7 +406,7 @@ def _password_reset_dialog(code: str) -> None:
                 Set New Password
             </div>
             <div style="font-size:0.8rem;color:#A89880">
-                Choose a strong password for your FinSight account
+                Choose a strong password for your Expenger account
             </div>
         </div>
         """,
@@ -457,7 +465,7 @@ def _handle_recovery_params() -> bool:
 
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-# AI Insights first — the highlight feature of FinSight
+# AI Insights first — the highlight feature of Expenger
 PAGES = {
     "🧠  AI Insights": chat_ai,
     "📊  Dashboard":   dashboard,
@@ -471,13 +479,12 @@ def _render_sidebar() -> str:
             """
             <div style="padding:0.5rem 0.5rem 1rem;text-align:center">
                 <div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:4px">
-                    <span style="font-size:2rem;filter:drop-shadow(0 0 18px rgba(201,168,96,0.55))">💡</span>
                     <div>
-                        <div style="font-size:1.3rem;font-weight:800;color:#F4ECDC;
-                                    letter-spacing:-0.3px">FinSight</div>
+                        <div style="font-size:1.65rem;font-weight:900;color:#F4ECDC;
+                                    letter-spacing:-0.5px">Expenger</div>
                         <div style="font-size:0.75rem;color:#6B5C50;font-weight:600;
                                     text-transform:uppercase;letter-spacing:0.07em">
-                            AI Finance Tracker
+                            AI Expense Manager
                         </div>
                     </div>
                 </div>
@@ -514,7 +521,14 @@ def main() -> None:
         landing.render()
         return
 
-    if not st.session_state.logged_in:
+    # Skip cookie auto-login while the auth dialog is open or being triggered.
+    # _auth_open persists across reruns until login succeeds (cleared in auth.py).
+    explicit_auth = (
+        st.query_params.get("show_auth") == "1"
+        or st.session_state.get("_auth_open")
+    )
+
+    if not st.session_state.logged_in and not explicit_auth:
         restore_session_from_cookies()
 
     if not st.session_state.logged_in:

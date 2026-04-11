@@ -76,7 +76,7 @@ def _process_uploaded_pdf(uploaded_file) -> None:
         markdown_text = parse_pdf_to_markdown(tmp_path)
         update(45, f"📄 Text extracted — {len(markdown_text):,} characters.")
 
-        update(55, "🤖 Asking FinSight AI to identify transactions…")
+        update(55, "🤖 Asking Expenger AI to identify transactions…")
         transactions = extract_transactions_from_markdown(markdown_text)
         update(80, f"✅ Found {len(transactions)} transactions.")
 

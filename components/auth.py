@@ -15,6 +15,7 @@ import json
 from datetime import datetime, timedelta
 
 import streamlit as st
+import streamlit.components.v1 as _components
 from components.session_store import get_cm as _cm
 
 from backend.supabase_client import sign_in, sign_up, sign_out, reset_password
@@ -43,11 +44,11 @@ def restore_session_from_cookies() -> bool:
         return False
 
     try:
-        data    = json.loads(raw)
+        data    = raw if isinstance(raw, dict) else json.loads(raw)
         user_id = data.get("user_id")
         email   = data.get("email")
         token   = data.get("token", "")
-    except (json.JSONDecodeError, AttributeError):
+    except (json.JSONDecodeError, AttributeError, TypeError):
         return False
 
     if user_id and email:
@@ -88,7 +89,8 @@ def _persist_session(result: dict) -> None:
     st.session_state.user_id      = str(user.id)
     st.session_state.user_email   = user.email
     st.session_state.access_token = token
-
+    st.session_state._logged_out  = False
+    st.session_state._auth_open   = False  # allow cookie restore again after login
     save_session_to_cookies(str(user.id), user.email, token)
 
 
@@ -97,12 +99,19 @@ def _persist_session(result: dict) -> None:
 def logout() -> None:
     sign_out()
     clear_session_cookies()
-    for key in ("logged_in", "user_id", "user_email", "access_token",
-                "transactions", "chat_messages", "last_uploaded_file"):
-        if key in st.session_state:
-            del st.session_state[key]
+    st.session_state.clear()
     st.session_state.logged_in = False
-    st.rerun()
+    # Use components.html() — unlike st.markdown(), it actually executes JS.
+    # window.parent accesses the top Streamlit frame to delete the real cookie,
+    # then forces a clean page reload so no stale session state survives.
+    _components.html(
+        f"""<script>
+        window.parent.document.cookie = '{_SESSION_COOKIE}=; Max-Age=0; path=/;';
+        setTimeout(function() {{ window.parent.location.href = '/'; }}, 150);
+        </script>""",
+        height=0,
+    )
+    st.stop()
 
 
 # ─── Form handlers ────────────────────────────────────────────────────────────
@@ -187,7 +196,9 @@ _DIALOG_CSS = """
     position: absolute; top: 0; left: 8%; right: 8%; height: 1px;
     background: linear-gradient(90deg, transparent, rgba(201,168,96,0.65), transparent);
 }
-[data-testid="stDialog"] h2 { display: none !important; }
+[data-testid="stDialog"] h2,
+[data-testid="stDialog"] [data-testid="stDialogTitle"],
+[data-testid="stDialog"] header { display: none !important; }
 
 /* Inputs inside dialog — sky-blue focus */
 [data-testid="stDialog"] label { color: #A89880 !important; font-size: 0.75rem !important; font-weight: 700 !important; text-transform: uppercase !important; letter-spacing: 0.08em !important; }
@@ -208,9 +219,9 @@ _DIALOG_CSS = """
     filter: drop-shadow(0 0 18px rgba(201,168,96,0.7));
 }
 .auth-dialog-logo h3 {
-    font-size: 1.5rem !important; font-weight: 800 !important;
-    color: #F4ECDC !important; letter-spacing: -0.5px !important;
-    margin: 0 0 0.1rem !important;
+    font-size: 2.2rem !important; font-weight: 900 !important;
+    color: #F4ECDC !important; letter-spacing: -1px !important;
+    margin: 0 0 0.2rem !important;
 }
 .auth-dialog-logo .sub {
     font-size: 0.65rem; color: #6B5C50; font-weight: 600;
@@ -262,7 +273,7 @@ _DIALOG_CSS = """
 
 # ─── Auth dialog ──────────────────────────────────────────────────────────────
 
-@st.dialog("FinSight", width="small")
+@st.dialog(" ", width="small")
 def show_auth_dialog() -> None:
     _init_session()
     # Default to login if auth_mode isn't explicitly set (prevents reset mode
@@ -275,9 +286,8 @@ def show_auth_dialog() -> None:
     st.markdown(
         """
         <div class="auth-dialog-logo">
-            <span class="icon">💡</span>
-            <h3>FinSight</h3>
-            <div class="sub">AI Finance Tracker</div>
+            <h3>Expenger</h3>
+            <div class="sub">AI Expense Manager</div>
         </div>
         <div class="auth-divider"></div>
         """,

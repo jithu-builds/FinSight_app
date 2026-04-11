@@ -101,7 +101,7 @@ def render() -> None:
         with col_btn:
             run_ai = st.button("✨ Get AI Budget Suggestions", use_container_width=True)
         with col_note:
-            st.caption("FinSight AI will analyse your spending history and suggest realistic monthly limits.")
+            st.caption("Expenger AI will analyse your spending history and suggest realistic monthly limits.")
 
         if run_ai:
             with st.spinner("🤖 Analysing your spending history…"):
