@@ -13,6 +13,9 @@ import re
 from collections import defaultdict
 from datetime import datetime, date
 
+from google import genai
+from google.genai import types
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -38,15 +41,12 @@ VALID_CATEGORIES = [
 
 
 def _get_client():
-    from google import genai
     if not GEMINI_API_KEY:
         raise EnvironmentError("GEMINI_API_KEY is not set in your .env file.")
     return genai.Client(api_key=GEMINI_API_KEY)
 
 
 def _generate(prompt: str, temperature: float = 0.3) -> str:
-    from google import genai
-    from google.genai import types
     client = _get_client()
     response = client.models.generate_content(
         model=_MODEL_NAME,
