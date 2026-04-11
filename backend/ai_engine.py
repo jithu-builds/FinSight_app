@@ -1,5 +1,5 @@
 """
-Google Gemini AI engine — gemini-2.5-flash
+Google Gemini AI engine — gemini-2.5-flash (google.genai SDK)
 
 Three responsibilities:
   1. extract_transactions_from_markdown() — bank statement → JSON transactions
@@ -37,12 +37,23 @@ VALID_CATEGORIES = [
 ]
 
 
-def _get_model():
-    import google.generativeai as genai
+def _get_client():
+    from google import genai
     if not GEMINI_API_KEY:
         raise EnvironmentError("GEMINI_API_KEY is not set in your .env file.")
-    genai.configure(api_key=GEMINI_API_KEY)
-    return genai.GenerativeModel(_MODEL_NAME)
+    return genai.Client(api_key=GEMINI_API_KEY)
+
+
+def _generate(prompt: str, temperature: float = 0.3) -> str:
+    from google import genai
+    from google.genai import types
+    client = _get_client()
+    response = client.models.generate_content(
+        model=_MODEL_NAME,
+        contents=prompt,
+        config=types.GenerateContentConfig(temperature=temperature),
+    )
+    return response.text
 
 
 def _strip_fences(text: str) -> str:
@@ -52,11 +63,14 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
+def _is_quota_error(exc: Exception) -> bool:
+    msg = str(exc)
+    return "429" in msg or "quota" in msg.lower() or "rate" in msg.lower() or "RESOURCE_EXHAUSTED" in msg
+
+
 # ─── 1. Transaction Extraction ────────────────────────────────────────────────
 
 def extract_transactions_from_markdown(markdown_text: str) -> list[dict]:
-    import google.generativeai as genai
-
     cats = ", ".join(VALID_CATEGORIES)
     prompt = f"""You are a financial data extraction assistant.
 
@@ -77,12 +91,7 @@ Bank statement:
 JSON array:"""
 
     try:
-        model = _get_model()
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(temperature=0.1),
-        )
-        raw = response.text
+        raw = _generate(prompt, temperature=0.1)
     except Exception as exc:
         raise RuntimeError(f"Gemini API call failed: {exc}") from exc
 
@@ -109,17 +118,6 @@ JSON array:"""
 # ─── 2. Spending Insights ─────────────────────────────────────────────────────
 
 def generate_spending_insights(transactions: list[dict], budgets: list[dict]) -> dict:
-    """
-    Analyse spending history against budgets and return structured insights.
-
-    Returns a dict with keys:
-        summary          str   — 2-3 sentence overview
-        health_score     int   — 0-100 budget adherence score
-        alerts           list  — categories at risk
-        predictions      list  — predicted end-of-month spend per category
-        recommendations  list  — specific actionable tips (e.g. skip movies)
-    """
-    import google.generativeai as genai
     import pandas as pd
 
     if not transactions:
@@ -134,14 +132,12 @@ def generate_spending_insights(transactions: list[dict], budgets: list[dict]) ->
     df = pd.DataFrame(transactions)
     df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0)
 
-    # ── Build spending context ────────────────────────────────────────────────
     expenses = df[df["amount"] < 0].copy()
     expenses["amount_abs"] = expenses["amount"].abs()
 
-    # Current month stats
     today = datetime.now()
     days_elapsed = today.day
-    days_in_month = 30  # approximation
+    days_in_month = 30
 
     try:
         expenses["date"] = pd.to_datetime(expenses["date"], errors="coerce")
@@ -158,20 +154,15 @@ def generate_spending_insights(transactions: list[dict], budgets: list[dict]) ->
         else expenses.groupby("category")["amount_abs"].sum().to_dict()
     )
 
-    # All-time category totals for pattern detection
     cat_alltime = expenses.groupby("category")["amount_abs"].sum().to_dict()
-
-    # Budget map
     budget_map = {b["category"]: float(b["monthly_limit"]) for b in budgets}
 
-    # Recent transactions list (last 20)
     recent_txns = (
         df.sort_values("date", ascending=False)
         .head(20)[["date", "description", "amount", "category"]]
         .to_string(index=False)
     )
 
-    # Recurring merchant detection
     desc_counts = expenses["description"].value_counts().head(10).to_dict()
     recurring = [f"{k} (×{v})" for k, v in desc_counts.items()]
 
@@ -241,15 +232,9 @@ Spending data:
 JSON:"""
 
     try:
-        model = _get_model()
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(temperature=0.4),
-        )
-        raw = response.text
+        raw = _generate(prompt, temperature=0.4)
     except Exception as exc:
-        msg = str(exc)
-        if "429" in msg or "quota" in msg.lower() or "rate" in msg.lower():
+        if _is_quota_error(exc):
             return {
                 "summary": (
                     "⚠️ AI insights are temporarily unavailable — your free Gemini API quota "
@@ -268,7 +253,6 @@ JSON:"""
     try:
         result = json.loads(cleaned)
     except json.JSONDecodeError:
-        # Fallback: return a basic structure
         return {
             "summary": raw[:300],
             "health_score": 50,
@@ -283,11 +267,6 @@ JSON:"""
 # ─── 3. Budget Suggestions ────────────────────────────────────────────────────
 
 def suggest_budgets(transactions: list[dict]) -> list[dict]:
-    """
-    Analyse historical spending and suggest realistic monthly budget limits.
-    Returns list of {category, suggested_limit, reasoning}.
-    """
-    import google.generativeai as genai
     import pandas as pd
 
     if not transactions:
@@ -300,7 +279,6 @@ def suggest_budgets(transactions: list[dict]) -> list[dict]:
 
     cat_avg = expenses.groupby("category")["amount_abs"].sum()
 
-    # Estimate how many months of data we have
     try:
         expenses["date"] = pd.to_datetime(expenses["date"], errors="coerce")
         date_range = (expenses["date"].max() - expenses["date"].min()).days
@@ -328,12 +306,8 @@ Return a JSON array:
 Output ONLY the JSON array. No markdown or explanation."""
 
     try:
-        model = _get_model()
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(temperature=0.2),
-        )
-        data = json.loads(_strip_fences(response.text))
+        raw = _generate(prompt, temperature=0.2)
+        data = json.loads(_strip_fences(raw))
         return data if isinstance(data, list) else []
     except Exception:
         return []
@@ -346,7 +320,6 @@ def answer_finance_question(
     transactions: list[dict],
     chat_history: list[dict] | None = None,
 ) -> str:
-    import google.generativeai as genai
     import pandas as pd
 
     if not transactions:
@@ -361,8 +334,8 @@ def answer_finance_question(
         df[df["amount"] < 0].groupby("category")["amount"].sum().abs()
         .sort_values(ascending=False).to_dict()
     )
-    cat_lines  = "\n".join(f"  • {c}: ${a:,.2f}" for c, a in cat_totals.items())
-    recent     = df.head(10)[["date", "description", "amount", "category"]].to_string(index=False)
+    cat_lines = "\n".join(f"  • {c}: ${a:,.2f}" for c, a in cat_totals.items())
+    recent    = df.head(10)[["date", "description", "amount", "category"]].to_string(index=False)
 
     history_str = ""
     if chat_history:
@@ -390,15 +363,9 @@ Recent 10 transactions:
 Assistant:"""
 
     try:
-        model = _get_model()
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(temperature=0.7),
-        )
-        return response.text.strip()
+        return _generate(prompt, temperature=0.7).strip()
     except Exception as exc:
-        msg = str(exc)
-        if "429" in msg or "quota" in msg.lower() or "rate" in msg.lower():
+        if _is_quota_error(exc):
             return (
                 "⚠️ I'm temporarily unavailable — the free Gemini API quota has been reached. "
                 "Please try again in a moment. Your transaction data is still fully visible in the Dashboard."

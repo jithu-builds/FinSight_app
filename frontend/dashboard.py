@@ -11,7 +11,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-import streamlit.components.v1 as _stc
+
 
 from backend.ai_engine import extract_transactions_from_markdown
 from backend.document_parser import parse_pdf_to_markdown
@@ -441,7 +441,7 @@ def _fmt_month(m: str) -> str:
 
 def render() -> None:
     # ── Scroll to top ─────────────────────────────────────────────────────────
-    _stc.html(_SCROLL_JS, height=1)
+    st.iframe(_SCROLL_JS, height=1)
 
     # ── Pending delete confirmation (survives rerun) ───────────────────────────
     if "_confirm_delete_id" in st.session_state:
@@ -463,7 +463,7 @@ def render() -> None:
 
     # ── Scroll-to-manage (injected on next render after button click) ────────────
     if st.session_state.pop("scroll_to_manage", False):
-        _stc.html(
+        st.iframe(
             """<script>
             setTimeout(function() {
                 try {

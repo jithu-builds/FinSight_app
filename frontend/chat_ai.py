@@ -11,7 +11,7 @@ Layout order (most actionable → least):
 
 import plotly.graph_objects as go
 import streamlit as st
-import streamlit.components.v1 as _stc
+
 
 from backend.ai_engine import answer_finance_question, generate_spending_insights
 from backend.supabase_client import fetch_budgets, fetch_transactions
@@ -474,7 +474,7 @@ def _render_chat(transactions: list[dict]) -> None:
 
     # If a chip was clicked, scroll to chat on this render
     if st.session_state.pop("scroll_to_chat", False):
-        _stc.html(_SCROLL_TO_CHAT_JS, height=1)
+        st.iframe(_SCROLL_TO_CHAT_JS, height=1)
 
     # Show existing messages
     for msg in st.session_state.chat_messages:
@@ -485,7 +485,7 @@ def _render_chat(transactions: list[dict]) -> None:
     prompt = st.chat_input("Ask anything about your spending…") or prefill_prompt
     if prompt:
         # Scroll to chat section immediately when user submits
-        _stc.html(_SCROLL_TO_CHAT_JS, height=1)
+        st.iframe(_SCROLL_TO_CHAT_JS, height=1)
 
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -501,7 +501,7 @@ def _render_chat(transactions: list[dict]) -> None:
                     reply = f"Error: {exc}"
             st.markdown(reply)
         # Scroll to bottom AFTER response renders so user sees the latest reply
-        _stc.html(_SCROLL_TO_BOTTOM_JS, height=1)
+        st.iframe(_SCROLL_TO_BOTTOM_JS, height=1)
         st.session_state.chat_messages.append({"role": "assistant", "content": reply})
 
     if st.session_state.chat_messages:
@@ -514,7 +514,7 @@ def _render_chat(transactions: list[dict]) -> None:
 
 def render() -> None:
     # Scroll to top on tab switch — called repeatedly to beat Streamlit's lazy render
-    _stc.html(
+    st.iframe(
         """<script>
         (function(){
             function doScroll(){

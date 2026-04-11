@@ -15,7 +15,8 @@ import json
 from datetime import datetime, timedelta
 
 import streamlit as st
-import streamlit.components.v1 as _components
+import streamlit.components.v1 as _stc
+
 from components.session_store import get_cm as _cm
 
 from backend.supabase_client import sign_in, sign_up, sign_out, reset_password
@@ -28,10 +29,12 @@ _SESSION_COOKIE = "ft_session"  # single cookie — avoids duplicate key='set' e
 # ─── Cookie helpers ───────────────────────────────────────────────────────────
 
 def save_session_to_cookies(user_id: str, email: str, token: str) -> None:
-    """Store all session data in ONE cookie to avoid duplicate Streamlit component keys."""
-    cm = _cm()
+    """Write session cookie via CookieManager."""
     data = json.dumps({"user_id": user_id, "email": email, "token": token})
-    cm.set(_SESSION_COOKIE, data, expires_at=COOKIE_EXPIRY)
+    try:
+        _cm().set(_SESSION_COOKIE, data, expires_at=COOKIE_EXPIRY)
+    except Exception:
+        pass
 
 
 def restore_session_from_cookies() -> bool:
@@ -104,17 +107,28 @@ def logout() -> None:
     # Use components.html() — unlike st.markdown(), it actually executes JS.
     # window.parent accesses the top Streamlit frame to delete the real cookie,
     # then forces a clean page reload so no stale session state survives.
-    _components.html(
+    _stc.html(
         f"""<script>
         window.parent.document.cookie = '{_SESSION_COOKIE}=; Max-Age=0; path=/;';
         setTimeout(function() {{ window.parent.location.href = '/'; }}, 150);
         </script>""",
-        height=0,
+        height=1,
     )
     st.stop()
 
 
 # ─── Form handlers ────────────────────────────────────────────────────────────
+
+def _go_to_dashboard() -> None:
+    """Close the dialog and go to dashboard by forcing a clean page reload."""
+    _stc.html(
+        """<script>
+        setTimeout(function() { window.parent.location.href = '/'; }, 150);
+        </script>""",
+        height=1,
+    )
+    st.stop()
+
 
 def _handle_sign_in(email: str, password: str) -> None:
     if not email or not password:
@@ -126,7 +140,7 @@ def _handle_sign_in(email: str, password: str) -> None:
         st.error(f"Login failed — {result['error']}")
         return
     _persist_session(result)
-    st.rerun()
+    _go_to_dashboard()
 
 
 def _handle_sign_up(email: str, password: str, confirm: str) -> None:
@@ -148,7 +162,7 @@ def _handle_sign_up(email: str, password: str, confirm: str) -> None:
         st.success("Account created! Check your inbox to confirm, then log in.")
     else:
         _persist_session(result)
-        st.rerun()
+        _go_to_dashboard()
 
 
 def _handle_reset(email: str) -> None:
@@ -311,7 +325,7 @@ def show_auth_dialog() -> None:
         if st.button("← Back to Log In", key="back_to_login", use_container_width=False):
             st.session_state.auth_mode = "login"
             st.session_state._auth_trigger = True
-            st.rerun()
+            st.rerun(scope="app")
 
         st.markdown(
             "<div class='auth-footer'>🔒 Secured by Supabase Auth · Data never shared</div>",
@@ -336,7 +350,7 @@ def show_auth_dialog() -> None:
         if st.button("Forgot password?", key="forgot_pw"):
             st.session_state.auth_mode = "reset"
             st.session_state._auth_trigger = True
-            st.rerun()
+            st.rerun(scope="app")
 
     with tab_signup:
         st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)

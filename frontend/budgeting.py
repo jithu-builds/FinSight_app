@@ -6,7 +6,7 @@ AI can suggest limits based on spending history.
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-import streamlit.components.v1 as _stc
+
 
 from backend.ai_engine import suggest_budgets
 from backend.supabase_client import fetch_budgets, fetch_transactions, upsert_budget
@@ -85,7 +85,7 @@ _BUDGET_CSS = """
 """
 
 def render() -> None:
-    _stc.html(_SCROLL_JS, height=1)
+    st.iframe(_SCROLL_JS, height=1)
     st.markdown(_BUDGET_CSS, unsafe_allow_html=True)
     st.title("💰 Budgeting")
 
