@@ -54,6 +54,7 @@ def _secret(key: str) -> str:
 
 SUPABASE_URL: str = _secret("SUPABASE_URL")
 SUPABASE_KEY: str = _secret("SUPABASE_KEY")
+APP_URL: str = _secret("APP_URL") or "http://localhost:8501"
 
 _client: Optional[Client] = None
 
@@ -89,7 +90,11 @@ def get_client() -> Client:
 
 def sign_up(email: str, password: str) -> dict:
     try:
-        response = get_client().auth.sign_up({"email": email, "password": password})
+        response = get_client().auth.sign_up({
+            "email": email,
+            "password": password,
+            "options": {"email_redirect_to": APP_URL},
+        })
         return {"user": response.user, "session": response.session, "error": None}
     except Exception as exc:
         return {"user": None, "session": None, "error": str(exc)}
@@ -114,7 +119,10 @@ def sign_out() -> None:
 
 def reset_password(email: str) -> dict:
     try:
-        get_client().auth.reset_password_for_email(email)
+        get_client().auth.reset_password_for_email(
+            email,
+            options={"redirect_to": APP_URL},
+        )
         return {"error": None}
     except Exception as exc:
         return {"error": str(exc)}
