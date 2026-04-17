@@ -364,9 +364,12 @@ _loader.markdown(
     unsafe_allow_html=True,
 )
 
-from components.auth import logout, restore_session_from_cookies  # noqa: E402
+import streamlit.components.v1 as _stc_v1                                          # noqa: E402
+from components.auth import logout, restore_session_from_cookies                   # noqa: E402
 from frontend import budgeting, chat_ai, dashboard, landing                        # noqa: E402
-from backend.supabase_client import exchange_code_for_session, update_user_password  # noqa: E402
+from backend.supabase_client import (                                              # noqa: E402
+    exchange_code_for_session, set_recovery_session, update_user_password,
+)
 
 _loader.empty()
 
@@ -388,7 +391,7 @@ def _init_session() -> None:
 # ─── Password reset callback ──────────────────────────────────────────────────
 
 @st.dialog("Set New Password", width="small")
-def _password_reset_dialog(code: str) -> None:
+def _password_reset_dialog(code: str = "", access_token: str = "", refresh_token: str = "") -> None:
     st.markdown(
         """
         <style>
@@ -413,18 +416,23 @@ def _password_reset_dialog(code: str) -> None:
         unsafe_allow_html=True,
     )
 
-    # Exchange the recovery code for a live session first
+    # Establish a recovery session (run once per dialog open)
     if not st.session_state.get("_recovery_session_set"):
         with st.spinner("Verifying reset link…"):
-            result = exchange_code_for_session(code)
+            if code:
+                # PKCE flow — exchange code for session
+                result = exchange_code_for_session(code)
+                session = result.get("session")
+            else:
+                # Implicit flow — token arrived directly in URL fragment
+                result = set_recovery_session(access_token, refresh_token)
+                session = result.get("session")
         if result["error"]:
             st.error(f"Reset link is invalid or expired — {result['error']}")
             if st.button("Request a new link"):
                 st.query_params.clear()
-                st.rerun()
+                st.rerun(scope="app")
             return
-        # Persist the recovery session so we can call update_user
-        session = result["session"]
         if session:
             st.session_state.access_token = session.access_token
         st.session_state._recovery_session_set = True
@@ -454,12 +462,23 @@ def _password_reset_dialog(code: str) -> None:
 
 
 def _handle_recovery_params() -> bool:
-    """Check URL for Supabase recovery code. Returns True if recovery flow is active."""
+    """Check URL for Supabase recovery params. Returns True if recovery flow is active."""
     params = st.query_params
+
+    # PKCE flow: ?code=...
     code = params.get("code")
     if code:
-        _password_reset_dialog(code)
+        _password_reset_dialog(code=code)
         return True
+
+    # Implicit flow: ?type=recovery&access_token=... (set by JS fragment redirect below)
+    if params.get("type") == "recovery" and params.get("access_token"):
+        _password_reset_dialog(
+            access_token=params["access_token"],
+            refresh_token=params.get("refresh_token", ""),
+        )
+        return True
+
     return False
 
 
@@ -515,6 +534,30 @@ def _render_sidebar() -> str:
 
 def main() -> None:
     _init_session()
+
+    # Detect Supabase implicit-flow recovery links (#access_token=...&type=recovery).
+    # Streamlit can't read URL fragments — JS reads the hash and redirects to clean query params.
+    _stc_v1.html(
+        """<script>
+        (function() {
+            var hash = window.parent.location.hash.slice(1);
+            if (!hash) return;
+            var p = {};
+            hash.split('&').forEach(function(s) {
+                var i = s.indexOf('=');
+                if (i > 0) p[decodeURIComponent(s.slice(0,i))] = decodeURIComponent(s.slice(i+1));
+            });
+            if (p['type'] === 'recovery' && p['access_token']) {
+                window.parent.location.replace(
+                    '/?type=recovery'
+                    + '&access_token=' + encodeURIComponent(p['access_token'])
+                    + '&refresh_token=' + encodeURIComponent(p['refresh_token'] || '')
+                );
+            }
+        })();
+        </script>""",
+        height=1,
+    )
 
     # Handle Supabase password-reset callback (?code=... in URL)
     if _handle_recovery_params():

@@ -137,6 +137,15 @@ def exchange_code_for_session(code: str) -> dict:
         return {"session": None, "user": None, "error": str(exc)}
 
 
+def set_recovery_session(access_token: str, refresh_token: str) -> dict:
+    """Activate a session from implicit-flow tokens (access_token in URL fragment)."""
+    try:
+        response = get_client().auth.set_session(access_token, refresh_token)
+        return {"session": response.session, "error": None}
+    except Exception as exc:
+        return {"session": None, "error": str(exc)}
+
+
 def update_user_password(new_password: str) -> dict:
     """Update the current user's password (must be called with an active session)."""
     try:
